@@ -1,0 +1,60 @@
+import React, { useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
+
+interface QRCodeGeneratorProps {
+  listId: string;
+}
+
+const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ listId }) => {
+  const [name, setName] = useState('');
+  const url = `${window.location.origin}?id=${listId}`;
+
+  const handleDownload = () => {
+    const svg = document.getElementById('qr-code') as HTMLElement;
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height + 30;
+      ctx?.drawImage(img, 0, 0);
+      
+      if (ctx) {
+        ctx.font = '16px Arial';
+        ctx.fillStyle = 'black';
+        ctx.textAlign = 'center';
+        ctx.fillText(name, canvas.width / 2, canvas.height - 10);
+      }
+      
+      const pngFile = canvas.toDataURL('image/png');
+      const downloadLink = document.createElement('a');
+      downloadLink.download = `${name || 'qrcode'}.png`;
+      downloadLink.href = pngFile;
+      downloadLink.click();
+    };
+    img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+  };
+
+  return (
+    <div className="flex flex-col items-center space-y-4">
+      <QRCodeSVG id="qr-code" value={url} size={200} />
+      <p className="text-lg font-semibold">Scan to view card list</p>
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Enter QR code name"
+        className="border border-gray-300 rounded px-3 py-2 w-full max-w-xs"
+      />
+      <button
+        onClick={handleDownload}
+        className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
+      >
+        Download QR Code
+      </button>
+    </div>
+  );
+};
+
+export default QRCodeGenerator;
