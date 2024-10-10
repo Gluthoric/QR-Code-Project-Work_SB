@@ -128,13 +128,20 @@ def update_card_list_name(id):
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
     app.logger.info("Upload request received")
+    app.logger.debug(f"Request files: {request.files}")
+    app.logger.debug(f"Request form: {request.form}")
+    
     if 'file' not in request.files:
         app.logger.error("No file part in the request")
         return jsonify({'error': 'No file part'}), 400
+    
     file = request.files['file']
+    app.logger.info(f"File received: {file.filename}")
+    
     if file.filename == '':
         app.logger.error("No selected file")
         return jsonify({'error': 'No selected file'}), 400
+    
     if file and file.filename.endswith('.csv'):
         try:
             filename = secure_filename(file.filename)

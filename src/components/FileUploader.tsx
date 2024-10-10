@@ -9,17 +9,22 @@ interface FileUploaderProps {
 const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
+      console.log('File accepted:', acceptedFiles[0].name);
       onFileUpload(acceptedFiles[0]);
+    } else {
+      console.log('No files were accepted');
     }
   }, [onFileUpload]);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, fileRejections } = useDropzone({
     onDrop,
     accept: {
       'text/csv': ['.csv'],
     },
     multiple: false,
   });
+
+  console.log('FileRejections:', fileRejections);
 
   return (
     <div
