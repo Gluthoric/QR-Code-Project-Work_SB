@@ -241,23 +241,27 @@ def fetch_card_data(cards):
             card_data.append(card_info)
             
             # Insert or update the card in the database
-            db.session.execute(text("""
-                INSERT INTO cards (id, name, set_code, set_name, collector_number, image_uris)
-                VALUES (:id, :name, :set, :set_name, :collector_number, :image_uris)
-                ON CONFLICT (id) DO UPDATE SET
-                    name = :name,
-                    set_code = :set,
-                    set_name = :set_name,
-                    collector_number = :collector_number,
-                    image_uris = :image_uris
-            """), {
-                'id': card_info['id'],
-                'name': card_info['name'],
-                'set': card_info['set'],
-                'set_name': card_info['set_name'],
-                'collector_number': card_info['collector_number'],
-                'image_uris': json.dumps(card_info['image_uris'])
-            })
+            db_card = Card.query.get(card_info['id'])
+            if db_card is None:
+                db_card = Card(
+                    id=card_info['id'],
+                    name=card_info['name'],
+                    set_code=card_info['set'],
+                    set_name=card_info['set_name'],
+                    collector_number=card_info['collector_number'],
+                    image_uris=card_info['image_uris'],
+                    price=card_info['price'],
+                    foil_price=card_info['foil_price']
+                )
+                db.session.add(db_card)
+            else:
+                db_card.name = card_info['name']
+                db_card.set_code = card_info['set']
+                db_card.set_name = card_info['set_name']
+                db_card.collector_number = card_info['collector_number']
+                db_card.image_uris = card_info['image_uris']
+                db_card.price = card_info['price']
+                db_card.foil_price = card_info['foil_price']
             
         except requests.RequestException as e:
             app.logger.error(f"Error fetching card data from Scryfall: {str(e)}")
@@ -273,7 +277,12 @@ def fetch_card_data(cards):
                 'collector_number': card.get('collector_number', 'Unknown')
             })
     
-    db.session.commit()
+    try:
+        db.session.commit()
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        app.logger.error(f"Error committing to database: {str(e)}")
+        raise
     return card_data
 
 @app.route('/api/health', methods=['GET'])
@@ -296,3 +305,15 @@ if __name__ == '__main__':
         db.create_all()
         setup_db_events(app)
     app.run(debug=True)
+
+# Define models
+class Card(db.Model):
+    __tablename__ = 'cards'
+    id = db.Column(db.Text, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    set_code = db.Column(db.String(10), nullable=False)
+    set_name = db.Column(db.String(255), nullable=False)
+    collector_number = db.Column(db.String(20), nullable=False)
+    image_uris = db.Column(db.JSON)
+    price = db.Column(db.Numeric(10, 2))
+    foil_price = db.Column(db.Numeric(10, 2))
