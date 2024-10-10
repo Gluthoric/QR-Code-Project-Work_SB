@@ -295,8 +295,16 @@ if __name__ == '__main__':
         # Ensure the 'name' column exists in the card_list_items table
         with db.engine.connect() as connection:
             connection.execute(text("""
-                ALTER TABLE card_list_items
-                ADD COLUMN IF NOT EXISTS name VARCHAR(255) NOT NULL DEFAULT '';
+                DO $$ 
+                BEGIN 
+                    IF NOT EXISTS (
+                        SELECT FROM information_schema.columns 
+                        WHERE table_name = 'card_list_items' AND column_name = 'name'
+                    ) THEN
+                        ALTER TABLE card_list_items
+                        ADD COLUMN name VARCHAR(255) NOT NULL DEFAULT '';
+                    END IF;
+                END $$;
             """))
         setup_db_events(app)
     app.run(debug=True)
