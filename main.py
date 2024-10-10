@@ -3,38 +3,28 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
-import redis
 import uuid
 from werkzeug.utils import secure_filename
 import csv
 import requests
 from sqlalchemy import event, text, CHAR
 from sqlalchemy.exc import SQLAlchemyError, OperationalError
-from sqlalchemy.orm import Session, relationship, scoped_session, sessionmaker
-import time
+from sqlalchemy.orm import relationship
 import json
+import logging
 
 # Load environment variables from .env.flask
 load_dotenv('.env.flask')
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
-
+logging.basicConfig(level=logging.DEBUG)
 # Configure SQLAlchemy
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 
 db = SQLAlchemy(app)
-session_factory = sessionmaker(bind=db.engine)
-Session = scoped_session(session_factory)
-
-# Configure Redis
-redis_client = redis.StrictRedis(
-    host=os.getenv('REDIS_HOST'),
-    port=int(os.getenv('REDIS_PORT')),
-    db=int(os.getenv('REDIS_DB'))
-)
 
 # Define models
 class CardList(db.Model):
@@ -53,32 +43,17 @@ def setup_db_events(app):
     @event.listens_for(db.engine, "engine_connect")
     def ping_connection(connection, branch):
         if branch:
-            # "branch" refers to a sub-connection of a connection,
-            # we don't want to bother pinging on these.
-            return
+            return  # Skip if this is a nested transaction or sub-connection
 
-        # turn off "close with result".  This flag is only used with
-        # "connectionless" execution, otherwise will be False in any case
         save_should_close_with_result = connection.should_close_with_result
         connection.should_close_with_result = False
 
         try:
-            # run a SELECT 1.   use a core select() so that
-            # the SELECT of a scalar value without a table is
-            # appropriately formatted for the backend
             connection.scalar(text("SELECT 1"))
         except Exception:
-            # catch SQLAlchemy's DBAPIError, which is a wrapper
-            # for the DBAPI's exception.  It includes a .connection_invalidated
-            # attribute which specifies if this connection is a "disconnect"
-            # condition, which is based on inspection of the original exception
-            # by the dialect in use.
             app.logger.warning("Database connection failed. Invalidating connection.")
             connection.invalidate()
-        else:
-            app.logger.debug("Database connection ping successful.")
         finally:
-            # restore "close with result"
             connection.should_close_with_result = save_should_close_with_result
 
 # Global error handler for database errors
@@ -95,9 +70,8 @@ def handle_operational_error(error):
 # API routes
 @app.route('/api/card-list/<string:id>', methods=['GET'])
 def get_card_list(id):
-    session = Session()
     try:
-        result = session.execute(text("""
+        result = db.session.execute(text("""
             SELECT cl.id, cl.name, c.*
             FROM card_lists cl
             LEFT JOIN card_list_items cli ON cl.id = cli.list_id
@@ -128,25 +102,28 @@ def get_card_list(id):
                 })
 
         return jsonify(card_list)
-    finally:
-        Session.remove()
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error: {str(e)}")
+        return jsonify({'error': 'An error occurred'}), 500
 
 @app.route('/api/card-list/<string:id>', methods=['PATCH'])
 def update_card_list_name(id):
-    session = Session()
     try:
-        card_list = session.query(CardList).get(id)
+        card_list = db.session.query(CardList).get(id)
         if not card_list:
             return jsonify({'error': 'Card list not found'}), 404
 
         data = request.json
         if 'name' in data:
             card_list.name = data['name']
-            session.commit()
+            db.session.commit()
             return jsonify({'message': 'Card list name updated successfully'})
         return jsonify({'error': 'Name not provided'}), 400
-    finally:
-        Session.remove()
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error: {str(e)}")
+        return jsonify({'error': 'An error occurred'}), 500
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
@@ -163,18 +140,17 @@ def upload_file():
         cards = process_csv(file_path)
         card_data = fetch_card_data(cards)
 
-        session = Session()
         try:
             list_id = str(uuid.uuid4())
             list_name = f"Card List {list_id[:8]}"
             new_list = CardList(id=list_id, name=list_name)
-            session.add(new_list)
+            db.session.add(new_list)
 
             for card_info in card_data:
                 card_list_item = CardListItem(list_id=list_id, card_id=card_info['id'])
-                session.add(card_list_item)
+                db.session.add(card_list_item)
 
-            session.commit()
+            db.session.commit()
 
             os.remove(file_path)  # Clean up the temporary file
 
@@ -184,11 +160,9 @@ def upload_file():
                 'cards': card_data
             })
         except Exception as e:
-            session.rollback()
+            db.session.rollback()
             app.logger.error(f"Error during file upload: {str(e)}")
             return jsonify({'error': 'An error occurred while processing your request.'}), 500
-        finally:
-            Session.remove()
 
     return jsonify({'error': 'Invalid file type'}), 400
 
@@ -210,73 +184,49 @@ def process_csv(file_path):
 def fetch_card_data(cards):
     card_data = []
     for card in cards:
-        cache_key = f"card:{card['name']}:{card['set']}"
-        cached_data = redis_client.get(cache_key)
-        if cached_data:
-            card_data.append(json.loads(cached_data))
-        else:
-            try:
-                response = requests.get(f"https://api.scryfall.com/cards/named?exact={card['name']}&set={card['set']}")
-                response.raise_for_status()
-                data = response.json()
-                card_info = {
-                    'id': data['id'],
-                    'name': data['name'],
-                    'set': data['set'],
-                    'set_name': data['set_name'],
-                    'image_uris': data.get('image_uris', {}),
-                    'price': float(data['prices'].get('usd', 0)),
-                    'foil_price': float(data['prices'].get('usd_foil', 0)),
-                    'collector_number': data['collector_number']
-                }
-                card_data.append(card_info)
-                redis_client.setex(cache_key, 86400, json.dumps(card_info))  # Cache for 24 hours
-            except requests.RequestException as e:
-                app.logger.error(f"Error fetching card data from Scryfall: {str(e)}")
-                # Add a placeholder for the card that couldn't be fetched
-                card_data.append({
-                    'id': f"error_{len(card_data)}",
-                    'name': card['name'],
-                    'set': card['set'],
-                    'set_name': 'Unknown',
-                    'image_uris': {},
-                    'price': 0,
-                    'foil_price': 0,
-                    'collector_number': card.get('collector_number', 'Unknown')
-                })
+        try:
+            response = requests.get(f"https://api.scryfall.com/cards/named?exact={card['name']}&set={card['set']}")
+            response.raise_for_status()
+            data = response.json()
+            card_info = {
+                'id': data['id'],
+                'name': data['name'],
+                'set': data['set'],
+                'set_name': data['set_name'],
+                'image_uris': data.get('image_uris', {}),
+                'price': float(data['prices'].get('usd', 0)),
+                'foil_price': float(data['prices'].get('usd_foil', 0)),
+                'collector_number': data['collector_number']
+            }
+            card_data.append(card_info)
+        except requests.RequestException as e:
+            app.logger.error(f"Error fetching card data from Scryfall: {str(e)}")
+            # Add a placeholder for the card that couldn't be fetched
+            card_data.append({
+                'id': f"error_{len(card_data)}",
+                'name': card['name'],
+                'set': card['set'],
+                'set_name': 'Unknown',
+                'image_uris': {},
+                'price': 0,
+                'foil_price': 0,
+                'collector_number': card.get('collector_number', 'Unknown')
+            })
     return card_data
-
-@app.route('/api/redis-test', methods=['GET'])
-def redis_test():
-    redis_client.set('test_key', 'Hello from Redis!')
-    value = redis_client.get('test_key')
-    return jsonify({'redis_value': value.decode('utf-8') if value else None})
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
     # Check database connection
-    session = Session()
     try:
-        session.execute(text("SELECT 1"))
+        db.session.execute(text("SELECT 1"))
         db_status = "healthy"
     except Exception as e:
         app.logger.error(f"Database health check failed: {str(e)}")
         db_status = "unhealthy"
-    finally:
-        Session.remove()
-
-    # Check Redis connection
-    try:
-        redis_client.ping()
-        redis_status = "healthy"
-    except Exception as e:
-        app.logger.error(f"Redis health check failed: {str(e)}")
-        redis_status = "unhealthy"
 
     return jsonify({
-        'status': 'healthy' if db_status == "healthy" and redis_status == "healthy" else "unhealthy",
-        'database': db_status,
-        'redis': redis_status
+        'status': 'healthy' if db_status == "healthy" else "unhealthy",
+        'database': db_status
     })
 
 if __name__ == '__main__':
