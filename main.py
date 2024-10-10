@@ -35,9 +35,15 @@ class CardList(db.Model):
 
 class CardListItem(db.Model):
     __tablename__ = 'card_list_items'
-    list_id = db.Column(db.UUID, db.ForeignKey('card_lists.id'), primary_key=True)
-    card_id = db.Column(db.Text, db.ForeignKey('cards.id', ondelete='CASCADE'), primary_key=True)
-    name = db.Column(db.String(255), nullable=False, default='')
+    list_id = db.Column(CHAR(36), db.ForeignKey('card_lists.id'), primary_key=True)
+    card_id = db.Column(db.Text, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    set_code = db.Column(db.String(10), nullable=False)
+    set_name = db.Column(db.String(255), nullable=False)
+    collector_number = db.Column(db.String(20), nullable=False)
+    image_uris = db.Column(db.JSON)
+    price = db.Column(db.Numeric(10, 2))
+    foil_price = db.Column(db.Numeric(10, 2))
     card_list = relationship('CardList', back_populates='items')
 
 def setup_db_events(app):
@@ -167,7 +173,13 @@ def upload_file():
                     card_list_item = CardListItem(
                         list_id=list_id,
                         card_id=card_info['id'],
-                        name=card_info['name']
+                        name=card_info['name'],
+                        set_code=card_info['set'],
+                        set_name=card_info['set_name'],
+                        collector_number=card_info['collector_number'],
+                        image_uris=json.dumps(card_info['image_uris']),
+                        price=card_info['price'],
+                        foil_price=card_info['foil_price']
                     )
                     db.session.add(card_list_item)
                 except SQLAlchemyError as e:
@@ -283,10 +295,10 @@ if __name__ == '__main__':
         # Ensure the 'name' column exists in the card_list_items table
         with db.engine.connect() as connection:
             connection.execute(text("""
-                DO $$ 
-                BEGIN 
+                DO $$
+                BEGIN
                     IF NOT EXISTS (
-                        SELECT FROM information_schema.columns 
+                        SELECT FROM information_schema.columns
                         WHERE table_name = 'card_list_items' AND column_name = 'name'
                     ) THEN
                         ALTER TABLE card_list_items
@@ -296,4 +308,3 @@ if __name__ == '__main__':
             """))
         setup_db_events(app)
     app.run(debug=True)
-
