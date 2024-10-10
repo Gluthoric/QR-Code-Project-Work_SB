@@ -294,6 +294,12 @@ def health_check():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
+        # Ensure the 'name' column exists in the card_list_items table
+        with db.engine.connect() as connection:
+            connection.execute(text("""
+                ALTER TABLE card_list_items
+                ADD COLUMN IF NOT EXISTS name VARCHAR(255) NOT NULL DEFAULT '';
+            """))
         setup_db_events(app)
     app.run(debug=True)
 
