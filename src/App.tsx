@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import FileUploader from './components/FileUploader';
 import CardGrid from './components/CardGrid';
 import QRCodeGenerator from './components/QRCodeGenerator';
-import { processCSV } from './utils/csvProcessor';
-import { fetchCardData } from './utils/api';
-import { Card } from './types';
-import { query } from './utils/database';
+import { getCardsFromLocalAPI } from './utils/api';
+import { Card, LocalAPICard } from './types';
+
+const API_URL = import.meta.env.VITE_API_URL;
 
 function App() {
   const [cards, setCards] = useState<Card[]>([]);
@@ -15,7 +14,6 @@ function App() {
   const [listName, setListName] = useState('');
 
   useEffect(() => {
-    console.warn('Warning: Direct database access from the frontend is not recommended for production use. Consider creating a backend API.');
     const urlParams = new URLSearchParams(window.location.search);
     const id = urlParams.get('id');
     if (id) {
@@ -26,13 +24,14 @@ function App() {
   const fetchCardList = async (id: string) => {
     setIsLoading(true);
     try {
-      const result = await query('SELECT name, cards FROM card_lists WHERE id = $1', [id]);
-      if (result.rows.length > 0) {
-        const data = result.rows[0];
-        setCards(data.cards);
-        setListId(id);
-        setListName(data.name);
+      const response = await fetch(`${API_URL}/card-list/${id}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+      const data = await response.json();
+      setCards(data.cards);
+      setListId(id);
+      setListName(data.name);
     } catch (error) {
       console.error('Error fetching card list:', error);
       alert('Error fetching card list. Please try again.');
@@ -44,24 +43,22 @@ function App() {
   const handleFileUpload = async (file: File) => {
     setIsLoading(true);
     try {
-      const parsedData = await processCSV(file);
-      const cardsWithData = await fetchCardData(parsedData);
-      const filteredCards = cardsWithData.filter((card): card is Card => card !== null);
-      setCards(filteredCards);
+      const formData = new FormData();
+      formData.append('file', file);
 
-      // Generate a new UUID for the list
-      const newListId = uuidv4();
-      setListId(newListId);
+      const response = await fetch(`${API_URL}/upload`, {
+        method: 'POST',
+        body: formData,
+      });
 
-      // Set a default name for the list
-      const defaultName = `Card List ${new Date().toLocaleString()}`;
-      setListName(defaultName);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-      // Save the card list to PostgreSQL
-      await query(
-        'INSERT INTO card_lists (id, name, cards) VALUES ($1, $2, $3)',
-        [newListId, defaultName, JSON.stringify(filteredCards)]
-      );
+      const result = await response.json();
+      setCards(result.cards);
+      setListId(result.id);
+      setListName(result.name);
     } catch (error) {
       console.error('Error processing file:', error);
       alert('Error processing file. Please try again.');
@@ -74,7 +71,17 @@ function App() {
     setListName(newName);
     if (listId) {
       try {
-        await query('UPDATE card_lists SET name = $1 WHERE id = $2', [newName, listId]);
+        const response = await fetch(`${API_URL}/card-list/${listId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ name: newName }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
       } catch (error) {
         console.error('Error updating list name:', error);
         alert('Error updating list name. Please try again.');

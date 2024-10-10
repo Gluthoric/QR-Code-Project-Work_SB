@@ -5,13 +5,23 @@ export interface CardData {
   price: number;
 }
 
-export interface Card extends CardData {
-  set_name?: string;
-  image_uris?: {
+export interface Card {
+  id: string;
+  name: string;
+  set: string;
+  set_name: string;
+  image_uris: {
     small: string;
     normal: string;
     large: string;
   };
-  foil_price?: number;
-  collector_number?: string;
+  price: number;
+  foil_price: number;
+  collector_number: string;
+}
+
+export interface LocalAPICard {
+  id: number;
+  name: string;
+  // Add other properties as needed for the local API response
 }

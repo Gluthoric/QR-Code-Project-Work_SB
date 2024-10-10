@@ -1,48 +1,93 @@
-# MTG Card Uploader
+# Card List Manager
 
-This project is a Magic: The Gathering card uploader and viewer that uses a local PostgreSQL database.
+This Flask application manages card lists and interacts with the Scryfall API to fetch card data.
 
 ## Setup
 
-1. Ensure you have PostgreSQL installed and running on your local machine.
-
-2. Create a new database for this project:
+1. Ensure you have Python 3.7+ installed.
+2. Install the required dependencies:
    ```
-   createdb mtg_collection_kiosk
+   pip install -r requirements.txt
    ```
-
-3. Run the setup SQL script to create the necessary table:
+3. Set up your `.env.flask` file with the following variables:
    ```
-   psql -d mtg_collection_kiosk -f setup.sql
-   ```
-
-4. Install the project dependencies:
-   ```
-   npm install
+   DATABASE_URI=your_database_uri
+   SECRET_KEY=your_secret_key
+   REDIS_HOST=your_redis_host
+   REDIS_PORT=your_redis_port
+   REDIS_DB=your_redis_db
    ```
 
-5. Create a `.env` file in the root of the project with the following content:
+## Running the Application
+
+1. Start your Redis server.
+2. Ensure your database server is running and accessible.
+3. Run the Flask application:
    ```
-   VITE_DATABASE_URI=postgresql://gluth:Caprisun1!@192.168.1.126:5432/mtg_collection_kiosk
+   python main.py
    ```
-   Replace the URI with your actual PostgreSQL connection string.
 
-## Running the Project
+## Testing the Application
 
-To start the development server:
+1. Test the health check endpoint:
+   ```
+   curl http://localhost:5000/api/health
+   ```
+   Expected response:
+   ```json
+   {
+     "status": "healthy",
+     "database": "healthy",
+     "redis": "healthy"
+   }
+   ```
 
-```
-npm run dev
-```
+2. Test the Redis connection:
+   ```
+   curl http://localhost:5000/api/redis-test
+   ```
+   Expected response: `{"redis_value":"Hello from Redis!"}`
 
-Then open your browser and navigate to `http://localhost:5173` (or the port specified in the console output).
+3. Upload a CSV file:
+   ```
+   curl -X POST -F "file=@path/to/your/file.csv" http://localhost:5000/api/upload
+   ```
+   This should return a JSON response with the new card list ID, name, and card data.
 
-## Important Note
+4. Get a card list:
+   ```
+   curl http://localhost:5000/api/card-list/<list_id>
+   ```
+   Replace `<list_id>` with an ID returned from the upload step.
 
-This project currently accesses the PostgreSQL database directly from the frontend. This is not recommended for production use due to security concerns. In a real-world scenario, you should create a backend API to handle database operations.
+5. Update a card list name:
+   ```
+   curl -X PATCH -H "Content-Type: application/json" -d '{"name":"New List Name"}' http://localhost:5000/api/card-list/<list_id>
+   ```
+   Replace `<list_id>` with an existing list ID.
 
-## Future Improvements
+## Troubleshooting
 
-1. Create a backend API to handle database operations.
-2. Implement user authentication and authorization.
-3. Add more robust error handling and data validation.
+If you encounter any issues:
+
+1. Check that your database and Redis server are running and accessible.
+2. Verify that your `.env.flask` file contains the correct configuration.
+3. Check the application logs for any error messages.
+4. Ensure that the 'cards' table exists in your database and has the correct schema.
+
+If problems persist, please open an issue in the project repository.
+
+## Recent Updates
+
+- Improved database connection handling and transaction management.
+- Enhanced error logging and reporting.
+- Updated health check endpoint to provide more detailed status information.
+
+## Notes for Developers
+
+- The application now uses SQLAlchemy's scoped session to manage database connections.
+- Each route handler is responsible for removing the session after use.
+- The `setup_db_events` function includes improved connection ping and invalidation logic.
+- Error handling has been enhanced throughout the application.
+
+When making changes to the application, please ensure that you maintain proper session management and error handling practices.
