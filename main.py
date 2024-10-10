@@ -18,7 +18,7 @@ load_dotenv('.env.flask')
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 # Configure SQLAlchemy
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -196,17 +196,28 @@ def upload_file():
 
 def process_csv(file_path):
     cards = []
-    with open(file_path, 'r') as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            name = row.get('name', '').strip()
-            set_code = row.get('set', '').strip()
-            if name and set_code:  # Only add cards with non-empty name and set
-                cards.append({
-                    'name': name,
-                    'set': set_code,
-                    'collector_number': row.get('collector_number', '').strip()
-                })
+    app.logger.info(f"Starting to process CSV file: {file_path}")
+    try:
+        with open(file_path, 'r') as csvfile:
+            reader = csv.DictReader(csvfile)
+            app.logger.info(f"CSV headers: {reader.fieldnames}")
+            for row_num, row in enumerate(reader, start=1):
+                name = row.get('name', '').strip()
+                set_code = row.get('set', '').strip()
+                if name and set_code:
+                    cards.append({
+                        'name': name,
+                        'set': set_code,
+                        'collector_number': row.get('collector_number', '').strip()
+                    })
+                    app.logger.debug(f"Processed row {row_num}: {name} ({set_code})")
+                else:
+                    app.logger.warning(f"Skipping row {row_num} due to missing name or set: {row}")
+    except Exception as e:
+        app.logger.error(f"Error processing CSV file: {str(e)}")
+        raise
+    
+    app.logger.info(f"Finished processing CSV. Total cards processed: {len(cards)}")
     return cards
 
 def fetch_card_data(cards):
