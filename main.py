@@ -1,7 +1,6 @@
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
-from flask_migrate import Migrate
 from dotenv import load_dotenv
 import os
 import uuid
@@ -26,7 +25,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 
 db = SQLAlchemy(app)
-migrate = Migrate(app, db)
 
 # Define models
 class CardList(db.Model):
@@ -139,18 +137,18 @@ def upload_file():
     app.logger.info("Upload request received")
     app.logger.debug(f"Request files: {request.files}")
     app.logger.debug(f"Request form: {request.form}")
-    
+
     if 'file' not in request.files:
         app.logger.error("No file part in the request")
         return jsonify({'error': 'No file part'}), 400
-    
+
     file = request.files['file']
     app.logger.info(f"File received: {file.filename}")
-    
+
     if file.filename == '':
         app.logger.error("No selected file")
         return jsonify({'error': 'No selected file'}), 400
-    
+
     if file and file.filename.endswith('.csv'):
         try:
             filename = secure_filename(file.filename)
@@ -239,7 +237,7 @@ def process_csv(file_path):
         app.logger.error(f"Error processing CSV file: {str(e)}")
         app.logger.exception("Full traceback:")
         raise
-    
+
     app.logger.info(f"Finished processing CSV. Total cards processed: {len(cards)}")
     return cards
 
