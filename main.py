@@ -239,6 +239,30 @@ def fetch_card_data(cards):
                 'collector_number': data['collector_number']
             }
             card_data.append(card_info)
+            
+            # Insert or update the card in the database
+            db.session.execute(text("""
+                INSERT INTO cards (id, name, set_code, set_name, collector_number, image_uris, price, foil_price)
+                VALUES (:id, :name, :set, :set_name, :collector_number, :image_uris, :price, :foil_price)
+                ON CONFLICT (id) DO UPDATE SET
+                    name = :name,
+                    set_code = :set,
+                    set_name = :set_name,
+                    collector_number = :collector_number,
+                    image_uris = :image_uris,
+                    price = :price,
+                    foil_price = :foil_price
+            """), {
+                'id': card_info['id'],
+                'name': card_info['name'],
+                'set': card_info['set'],
+                'set_name': card_info['set_name'],
+                'collector_number': card_info['collector_number'],
+                'image_uris': json.dumps(card_info['image_uris']),
+                'price': card_info['price'],
+                'foil_price': card_info['foil_price']
+            })
+            
         except requests.RequestException as e:
             app.logger.error(f"Error fetching card data from Scryfall: {str(e)}")
             # Add a placeholder for the card that couldn't be fetched
@@ -252,6 +276,8 @@ def fetch_card_data(cards):
                 'foil_price': 0,
                 'collector_number': card.get('collector_number', 'Unknown')
             })
+    
+    db.session.commit()
     return card_data
 
 @app.route('/api/health', methods=['GET'])
