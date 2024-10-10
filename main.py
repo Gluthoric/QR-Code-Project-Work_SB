@@ -201,14 +201,15 @@ def process_csv(file_path):
         with open(file_path, 'r') as csvfile:
             reader = csv.DictReader(csvfile)
             app.logger.info(f"CSV headers: {reader.fieldnames}")
+            headers = {h.lower(): h for h in reader.fieldnames}
             for row_num, row in enumerate(reader, start=1):
-                name = row.get('name', '').strip()
-                set_code = row.get('set', '').strip()
+                name = row.get(headers.get('name', 'Name'), '').strip()
+                set_code = row.get(headers.get('set', 'Set'), '').strip()
                 if name and set_code:
                     cards.append({
                         'name': name,
                         'set': set_code,
-                        'collector_number': row.get('collector_number', '').strip()
+                        'collector_number': row.get(headers.get('collector number', 'Collector Number'), '').strip()
                     })
                     app.logger.debug(f"Processed row {row_num}: {name} ({set_code})")
                 else:
