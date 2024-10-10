@@ -6,7 +6,7 @@ import QRCodeGenerator from './components/QRCodeGenerator';
 import { processCSV } from './utils/csvProcessor';
 import { fetchCardData } from './utils/api';
 import { Card } from './types';
-import { supabase } from './utils/supabase';
+import { query } from './utils/database';
 
 function App() {
   const [cards, setCards] = useState<Card[]>([]);
@@ -15,6 +15,7 @@ function App() {
   const [listName, setListName] = useState('');
 
   useEffect(() => {
+    console.warn('Warning: Direct database access from the frontend is not recommended for production use. Consider creating a backend API.');
     const urlParams = new URLSearchParams(window.location.search);
     const id = urlParams.get('id');
     if (id) {
@@ -25,14 +26,9 @@ function App() {
   const fetchCardList = async (id: string) => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('card_lists')
-        .select('name, cards')
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
-      if (data) {
+      const result = await query('SELECT name, cards FROM card_lists WHERE id = $1', [id]);
+      if (result.rows.length > 0) {
+        const data = result.rows[0];
         setCards(data.cards);
         setListId(id);
         setListName(data.name);
@@ -61,12 +57,11 @@ function App() {
       const defaultName = `Card List ${new Date().toLocaleString()}`;
       setListName(defaultName);
 
-      // Save the card list to Supabase
-      const { error } = await supabase
-        .from('card_lists')
-        .insert({ id: newListId, name: defaultName, cards: filteredCards });
-
-      if (error) throw error;
+      // Save the card list to PostgreSQL
+      await query(
+        'INSERT INTO card_lists (id, name, cards) VALUES ($1, $2, $3)',
+        [newListId, defaultName, JSON.stringify(filteredCards)]
+      );
     } catch (error) {
       console.error('Error processing file:', error);
       alert('Error processing file. Please try again.');
@@ -79,12 +74,7 @@ function App() {
     setListName(newName);
     if (listId) {
       try {
-        const { error } = await supabase
-          .from('card_lists')
-          .update({ name: newName })
-          .eq('id', listId);
-
-        if (error) throw error;
+        await query('UPDATE card_lists SET name = $1 WHERE id = $2', [newName, listId]);
       } catch (error) {
         console.error('Error updating list name:', error);
         alert('Error updating list name. Please try again.');

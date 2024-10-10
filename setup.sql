@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS card_lists (
+    id UUID PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    cards JSONB NOT NULL
+);

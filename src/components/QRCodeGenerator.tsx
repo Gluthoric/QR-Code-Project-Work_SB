@@ -2,13 +2,12 @@ import React, { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface QRCodeGeneratorProps {
-  listId: string;
+  url: string;
+  name: string;
+  onNameChange: (newName: string) => void;
 }
 
-const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ listId }) => {
-  const [name, setName] = useState('');
-  const url = `${window.location.origin}?id=${listId}`;
-
+const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ url, name, onNameChange }) => {
   const handleDownload = () => {
     const svg = document.getElementById('qr-code') as HTMLElement;
     const svgData = new XMLSerializer().serializeToString(svg);
@@ -19,14 +18,14 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ listId }) => {
       canvas.width = img.width;
       canvas.height = img.height + 30;
       ctx?.drawImage(img, 0, 0);
-      
+
       if (ctx) {
         ctx.font = '16px Arial';
         ctx.fillStyle = 'black';
         ctx.textAlign = 'center';
         ctx.fillText(name, canvas.width / 2, canvas.height - 10);
       }
-      
+
       const pngFile = canvas.toDataURL('image/png');
       const downloadLink = document.createElement('a');
       downloadLink.download = `${name || 'qrcode'}.png`;
@@ -43,7 +42,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ listId }) => {
       <input
         type="text"
         value={name}
-        onChange={(e) => setName(e.target.value)}
+        onChange={(e) => onNameChange(e.target.value)}
         placeholder="Enter QR code name"
         className="border border-gray-300 rounded px-3 py-2 w-full max-w-xs"
       />
