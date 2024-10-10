@@ -242,25 +242,21 @@ def fetch_card_data(cards):
             
             # Insert or update the card in the database
             db.session.execute(text("""
-                INSERT INTO cards (id, name, set_code, set_name, collector_number, image_uris, price, foil_price)
-                VALUES (:id, :name, :set, :set_name, :collector_number, :image_uris, :price, :foil_price)
+                INSERT INTO cards (id, name, set_code, set_name, collector_number, image_uris)
+                VALUES (:id, :name, :set, :set_name, :collector_number, :image_uris)
                 ON CONFLICT (id) DO UPDATE SET
                     name = :name,
                     set_code = :set,
                     set_name = :set_name,
                     collector_number = :collector_number,
-                    image_uris = :image_uris,
-                    price = :price,
-                    foil_price = :foil_price
+                    image_uris = :image_uris
             """), {
                 'id': card_info['id'],
                 'name': card_info['name'],
                 'set': card_info['set'],
                 'set_name': card_info['set_name'],
                 'collector_number': card_info['collector_number'],
-                'image_uris': json.dumps(card_info['image_uris']),
-                'price': card_info['price'],
-                'foil_price': card_info['foil_price']
+                'image_uris': json.dumps(card_info['image_uris'])
             })
             
         except requests.RequestException as e:
