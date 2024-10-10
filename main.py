@@ -206,6 +206,7 @@ def upload_file():
         except Exception as e:
             db.session.rollback()
             app.logger.error(f"Unexpected error during file upload: {str(e)}")
+            app.logger.exception("Full traceback:")
             return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), 500
 
     app.logger.error("Invalid file type")
@@ -220,6 +221,7 @@ def process_csv(file_path):
             app.logger.info(f"CSV headers: {reader.fieldnames}")
             headers = {h.lower(): h for h in reader.fieldnames}
             for row_num, row in enumerate(reader, start=1):
+                app.logger.debug(f"Processing row {row_num}: {row}")
                 name = row.get(headers.get('name', 'Name'), '').strip()
                 set_code = row.get(headers.get('set', 'Set'), '').strip()
                 if name and set_code:
@@ -233,6 +235,7 @@ def process_csv(file_path):
                     app.logger.warning(f"Skipping row {row_num} due to missing name or set: {row}")
     except Exception as e:
         app.logger.error(f"Error processing CSV file: {str(e)}")
+        app.logger.exception("Full traceback:")
         raise
     
     app.logger.info(f"Finished processing CSV. Total cards processed: {len(cards)}")
