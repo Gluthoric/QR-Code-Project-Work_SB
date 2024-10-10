@@ -127,32 +127,52 @@ def update_card_list_name(id):
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
+    app.logger.info("Upload request received")
     if 'file' not in request.files:
+        app.logger.error("No file part in the request")
         return jsonify({'error': 'No file part'}), 400
     file = request.files['file']
     if file.filename == '':
+        app.logger.error("No selected file")
         return jsonify({'error': 'No selected file'}), 400
     if file and file.filename.endswith('.csv'):
-        filename = secure_filename(file.filename)
-        file_path = os.path.join('/tmp', filename)
-        file.save(file_path)
-
-        cards = process_csv(file_path)
-        card_data = fetch_card_data(cards)
-
         try:
+            filename = secure_filename(file.filename)
+            file_path = os.path.join('/tmp', filename)
+            file.save(file_path)
+            app.logger.info(f"File saved to {file_path}")
+
+            cards = process_csv(file_path)
+            app.logger.info(f"Processed {len(cards)} cards from CSV")
+
+            card_data = fetch_card_data(cards)
+            app.logger.info(f"Fetched data for {len(card_data)} cards")
+
             list_id = str(uuid.uuid4())
             list_name = f"Card List {list_id[:8]}"
             new_list = CardList(id=list_id, name=list_name)
             db.session.add(new_list)
+            app.logger.info(f"Created new CardList: {list_id}")
 
             for card_info in card_data:
-                card_list_item = CardListItem(list_id=list_id, card_id=card_info['id'])
-                db.session.add(card_list_item)
+                try:
+                    card_list_item = CardListItem(list_id=list_id, card_id=card_info['id'])
+                    db.session.add(card_list_item)
+                except SQLAlchemyError as e:
+                    app.logger.error(f"Error adding CardListItem: {str(e)}")
+                    db.session.rollback()
+                    return jsonify({'error': f'Error adding card to list: {str(e)}'}), 500
 
-            db.session.commit()
+            try:
+                db.session.commit()
+                app.logger.info(f"Committed changes to database")
+            except SQLAlchemyError as e:
+                app.logger.error(f"Error committing to database: {str(e)}")
+                db.session.rollback()
+                return jsonify({'error': f'Error saving to database: {str(e)}'}), 500
 
-            os.remove(file_path)  # Clean up the temporary file
+            os.remove(file_path)
+            app.logger.info(f"Temporary file {file_path} removed")
 
             return jsonify({
                 'id': list_id,
@@ -161,9 +181,10 @@ def upload_file():
             })
         except Exception as e:
             db.session.rollback()
-            app.logger.error(f"Error during file upload: {str(e)}")
-            return jsonify({'error': 'An error occurred while processing your request.'}), 500
+            app.logger.error(f"Unexpected error during file upload: {str(e)}")
+            return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), 500
 
+    app.logger.error("Invalid file type")
     return jsonify({'error': 'Invalid file type'}), 400
 
 def process_csv(file_path):
