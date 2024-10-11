@@ -311,13 +311,13 @@ def health_check():
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_react_app(path):
-    # Serve React's index.html for all non-API routes
     if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
         app.logger.debug(f"Serving static file: {path}")
         return send_from_directory(app.static_folder, path)
     else:
         app.logger.debug("Serving index.html")
         return send_from_directory(app.static_folder, 'index.html')
+
 
 if __name__ == '__main__':
     with app.app_context():
