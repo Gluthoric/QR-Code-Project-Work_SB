@@ -70,14 +70,14 @@ def handle_operational_error(error):
 
 # API routes
 
-@app.route('/api/card-list/<string:id>', methods=['GET'])
-def get_card_list(id):
+@app.route('/api/card-list/<uuid:card_list_id>', methods=['GET'])
+def get_card_list(card_list_id):
     try:
-        card_list = db.session.get(CardList, id)
+        card_list = db.session.get(CardList, str(card_list_id))
         if not card_list:
             return jsonify({'error': 'Card list not found'}), 404
 
-        items = db.session.query(CardListItem).filter_by(list_id=id).all()
+        items = db.session.query(CardListItem).filter_by(list_id=str(card_list_id)).all()
         cards = [{
             "id": item.card_id,
             "name": item.name,
