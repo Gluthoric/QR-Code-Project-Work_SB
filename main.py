@@ -1,4 +1,5 @@
-from flask import Flask, jsonify, request, render_template_string, redirect
+from flask import Flask, jsonify, request, render_template_string, redirect, send_from_directory
+import os
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -20,7 +21,7 @@ import socket
 # Load environment variables from .env.flask
 load_dotenv('.env.flask')
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='../build', static_url_path='')
 CORS(app)  # Enable CORS for all routes
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 # Configure SQLAlchemy
@@ -80,45 +81,6 @@ def handle_operational_error(error):
     return jsonify({'error': 'Database connection error. Please try again later.'}), 503
 
 # API routes
-@app.route('/api/card-list/<string:id>', methods=['GET'])
-def get_card_list(id):
-    try:
-        result = db.session.execute(text("""
-            SELECT cl.id, cl.name, c.*
-            FROM card_lists cl
-            LEFT JOIN card_list_items cli ON cl.id = cli.list_id
-            LEFT JOIN cards c ON cli.card_id = c.id
-            WHERE cl.id = :list_id
-        """), {'list_id': id}).fetchall()
-
-        if not result:
-            return jsonify({'error': 'Card list not found'}), 404
-
-        card_list = {
-            'id': result[0].id,
-            'name': result[0].name,
-            'cards': []
-        }
-
-        for row in result:
-            if row.card_id:
-                card_list['cards'].append({
-                    'id': row.card_id,
-                    'name': row.name,
-                    'set': row.set,
-                    'set_name': row.set_name,
-                    'image_uris': json.loads(row.image_uris) if row.image_uris else {},
-                    'price': float(row.price) if row.price else 0,
-                    'foil_price': float(row.foil_price) if row.foil_price else 0,
-                    'collector_number': row.collector_number,
-                    'quantity': row.quantity
-                })
-
-        return jsonify(card_list)
-    except Exception as e:
-        db.session.rollback()
-        app.logger.error(f"Error: {str(e)}")
-        return jsonify({'error': 'An error occurred'}), 500
 
 @app.route('/api/card-list/<string:id>', methods=['PATCH'])
 def update_card_list_name(id):
@@ -352,6 +314,15 @@ def health_check():
         'status': 'healthy' if db_status == "healthy" else "unhealthy",
         'database': db_status
     })
+
+# Serve React App
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve(path):
+    if path != "" and os.path.exists(app.static_folder + '/' + path):
+        return send_from_directory(app.static_folder, path)
+    else:
+        return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == '__main__':
     with app.app_context():
