@@ -304,7 +304,7 @@ def redirect_to_list():
         return redirect(f'/card-list/{list_id}')
     return "No list ID provided", 400
 
-@app.route('/card-list/<string:id>', methods=['GET'])
+@app.route('/api/card-list/<string:id>', methods=['GET'])
 def serve_card_list(id):
     card_list = CardList.query.get(id)
     if card_list is None:

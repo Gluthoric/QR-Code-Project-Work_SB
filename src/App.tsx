@@ -32,7 +32,7 @@ function App() {
 
   const fetchLocalIpAddress = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/get-local-ip`);
+      const response = await fetch(`${API_URL}/get-local-ip`);
       if (response.ok) {
         const data = await response.json();
         console.log('Fetched local IP address:', data.ip);
@@ -125,7 +125,7 @@ function App() {
         <div className="space-y-8">
           {listId && (
             <QRCodeGenerator
-              url={`http://${localIpAddress}:5000/card-list/${listId}`}
+              url={`http://${localIpAddress}:5173/card-list/${listId}`}
               name={listName}
               onNameChange={handleNameChange}
             />
