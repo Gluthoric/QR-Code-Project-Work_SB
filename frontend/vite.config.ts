@@ -5,14 +5,14 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   build: {
-    outDir: 'dist', // Match this to your Flask static folder
-    assetsDir: 'assets', // Ensure assets are generated in /dist/assets
+    outDir: 'dist',  // Matches the `static_folder` in Flask ('/frontend/dist')
+    assetsDir: 'assets',  // Assets will be generated in 'dist/assets'
   },
   server: {
-    host: '0.0.0.0', // This enables the server to be accessible from any device on the network
-    port: 5173, // Specify the port explicitly
+    host: '0.0.0.0',  // Allow access from other devices on the network
+    port: 5173,  // Development server port
     proxy: {
-      '/api': 'http://localhost:5000', // Proxy API requests to Flask
+      '/api': 'http://localhost:5000',  // Proxy API requests to Flask backend
     },
   },
 })
