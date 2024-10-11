@@ -6,6 +6,7 @@ import { getCardsFromLocalAPI } from './utils/api';
 import { Card } from './types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+console.log('API_URL:', API_URL); // Add this line for debugging
 
 function App() {
   const [cards, setCards] = useState<Card[]>([]);
