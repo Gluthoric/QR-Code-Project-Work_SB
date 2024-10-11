@@ -124,7 +124,7 @@ function App() {
         <div className="space-y-8">
           {listId && (
             <QRCodeGenerator
-              url={`http://${localIpAddress}:5000/?id=${listId}`}
+              url={`http://${localIpAddress}:5000/card-list/${listId}`}
               name={listName}
               onNameChange={handleNameChange}
             />

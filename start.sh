@@ -48,7 +48,7 @@ sleep 5
 
 # Start the frontend (Vite)
 echo "Starting frontend..."
-npm run dev &
+npm run dev -- --host 0.0.0.0 --port 5173 &
 vite_pid=$!  # Store the Vite frontend process ID
 
 # Wait for both processes to finish or be killed

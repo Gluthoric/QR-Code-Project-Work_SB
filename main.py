@@ -308,24 +308,25 @@ def redirect_to_list():
 def serve_card_list(id):
     card_list = CardList.query.get(id)
     if card_list is None:
-        return "Card list not found", 404
+        return jsonify({"error": "Card list not found"}), 404
     
-    # Render the React app with the card list data
-    return render_template_string("""
-        <!doctype html>
-        <html lang="en">
-          <head>
-            <meta charset="UTF-8" />
-            <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-            <title>{{ card_list.name }}</title>
-          </head>
-          <body>
-            <div id="root" data-card-list-id="{{ card_list.id }}"></div>
-            <script type="module" src="/src/main.tsx"></script>
-          </body>
-        </html>
-    """, card_list=card_list)
+    items = CardListItem.query.filter_by(list_id=id).all()
+    cards = [{
+        "id": item.card_id,
+        "name": item.name,
+        "set": item.set_code,
+        "set_name": item.set_name,
+        "image_uris": json.loads(item.image_uris) if item.image_uris else {},
+        "price": float(item.price) if item.price else 0,
+        "foil_price": float(item.foil_price) if item.foil_price else 0,
+        "collector_number": item.collector_number,
+    } for item in items]
+    
+    return jsonify({
+        "id": card_list.id,
+        "name": card_list.name,
+        "cards": cards
+    })
 
 
 @app.route('/api/health', methods=['GET'])
