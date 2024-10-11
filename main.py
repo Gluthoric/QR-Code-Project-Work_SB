@@ -19,13 +19,8 @@ import netifaces
 # Load environment variables from .env.flask
 load_dotenv('.env.flask')
 
-# Initialize Flask with absolute path for static_folder
-app = Flask(
-    __name__,
-    static_folder=os.path.join(os.path.dirname(__file__), 'frontend', 'dist'),
-    static_url_path=''
-)
-app.logger.debug(f"Static folder path set to: {app.static_folder}")
+# Initialize Flask
+app = Flask(__name__)
 
 CORS(app)  # Enable CORS for all routes
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -309,16 +304,6 @@ def health_check():
         'database': db_status
     })
 
-# Serve React App (must be after API routes to avoid conflicts)
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def serve_react_app(path):
-    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
-        app.logger.debug(f"Serving static file: {path}")
-        return send_from_directory(app.static_folder, path)
-    else:
-        app.logger.debug("Serving index.html")
-        return send_from_directory(app.static_folder, 'index.html')
 
 
 if __name__ == '__main__':
