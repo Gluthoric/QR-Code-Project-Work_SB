@@ -1,4 +1,218 @@
-from flask import Flask, jsonify, request, render_template_string
+==== src/components/QRCodeGenerator.tsx ====
+
+import React, { useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
+
+interface QRCodeGeneratorProps {
+  url: string;
+  name: string;
+  onNameChange: (newName: string) => void;
+}
+
+const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ url, name, onNameChange }) => {
+  const handleDownload = () => {
+    const svg = document.getElementById('qr-code') as HTMLElement;
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height + 30;
+      ctx?.drawImage(img, 0, 0);
+
+      if (ctx) {
+        ctx.font = '16px Arial';
+        ctx.fillStyle = 'black';
+        ctx.textAlign = 'center';
+        ctx.fillText(name, canvas.width / 2, canvas.height - 10);
+      }
+
+      const pngFile = canvas.toDataURL('image/png');
+      const downloadLink = document.createElement('a');
+      downloadLink.download = `${name || 'qrcode'}.png`;
+      downloadLink.href = pngFile;
+      downloadLink.click();
+    };
+    img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+  };
+
+  return (
+    <div className="flex flex-col items-center space-y-4">
+      <QRCodeSVG id="qr-code" value={url} size={200} />
+      <p className="text-lg font-semibold">Scan to view card list</p>
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => onNameChange(e.target.value)}
+        placeholder="Enter QR code name"
+        className="border border-gray-300 rounded px-3 py-2 w-full max-w-xs"
+      />
+      <button
+        onClick={handleDownload}
+        className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
+      >
+        Download QR Code
+      </button>
+    </div>
+  );
+};
+
+export default QRCodeGenerator;
+
+==== src/App.tsx ====
+
+import React, { useState, useEffect } from 'react';
+import { FileUploader } from './components/FileUploader';
+import CardGrid from './components/CardGrid.tsx';
+import QRCodeGenerator from './components/QRCodeGenerator';
+import { getCardsFromLocalAPI } from './utils/api';
+import { Card } from './types';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+console.log('API_URL:', API_URL); // Add this line for debugging
+
+function App() {
+  const [cards, setCards] = useState<Card[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [listId, setListId] = useState<string | null>(null);
+  const [listName, setListName] = useState('');
+  const [localIpAddress, setLocalIpAddress] = useState('');
+
+  useEffect(() => {
+    const rootElement = document.getElementById('root');
+    const cardListId = rootElement?.getAttribute('data-card-list-id');
+    if (cardListId) {
+      fetchCardList(cardListId);
+    } else {
+      const urlParams = new URLSearchParams(window.location.search);
+      const id = urlParams.get('id');
+      if (id) {
+        fetchCardList(id);
+      }
+    }
+    fetchLocalIpAddress();
+  }, []);
+
+  const fetchLocalIpAddress = async () => {
+    try {
+      const response = await fetch(`${API_URL}/get-local-ip`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Fetched local IP address:', data.ip);
+        setLocalIpAddress(data.ip);
+      } else {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Error fetching local IP address:', error);
+      setLocalIpAddress('localhost'); // Fallback to localhost if unable to fetch IP
+    }
+  };
+
+  const fetchCardList = async (id: string) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/card-list/${id}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      setCards(data.cards);
+      setListId(id);
+      setListName(data.name);
+    } catch (error) {
+      console.error('Error fetching card list:', error);
+      alert('Error fetching card list. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFileUpload = async (file: File) => {
+    setIsLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_URL}/api/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      setCards(result.cards);
+      setListId(result.id);
+      setListName(result.name);
+    } catch (error) {
+      console.error('Error processing file:', error);
+      alert('Error processing file. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleNameChange = async (newName: string) => {
+    setListName(newName);
+    if (listId) {
+      try {
+        const response = await fetch(`${API_URL}/card-list/${listId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ name: newName }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+      } catch (error) {
+        console.error('Error updating list name:', error);
+        alert('Error updating list name. Please try again.');
+      }
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100 p-8">
+      <h1 className="text-4xl font-bold text-center mb-8">MTG Card Uploader</h1>
+      {cards.length === 0 ? (
+        <div className="max-w-md mx-auto">
+          <FileUploader onFileUpload={handleFileUpload} />
+        </div>
+      ) : (
+        <div className="space-y-8">
+          {listId && (
+            <QRCodeGenerator
+              url={`http://${localIpAddress}:5173/card-list/${listId}`}
+              name={listName}
+              onNameChange={handleNameChange}
+            />
+          )}
+          <CardGrid cards={cards} />
+        </div>
+      )}
+      {isLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white p-4 rounded-lg shadow-lg">
+            <p className="text-lg font-semibold">Loading...</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;
+
+==== main.py ====
+
+from flask import Flask, jsonify, request, render_template_string, redirect
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -15,6 +229,7 @@ import logging
 import qrcode
 from io import BytesIO
 import base64
+import socket
 
 # Load environment variables from .env.flask
 load_dotenv('.env.flask')
@@ -47,14 +262,14 @@ class CardListItem(db.Model):
     image_uris = db.Column(db.JSON)
     price = db.Column(db.Numeric(10, 2))
     foil_price = db.Column(db.Numeric(10, 2))
-    quantity = db.Column(db.Integer, default=1)
+    quantity = db.Column(db.Integer, default=1)  # New field for quantity
     card_list = relationship('CardList', back_populates='items')
 
 def setup_db_events(app):
     @event.listens_for(db.engine, "engine_connect")
     def ping_connection(connection, branch):
         if branch:
-            return
+            return  # Skip if this is a nested transaction or sub-connection
 
         save_should_close_with_result = connection.should_close_with_result
         connection.should_close_with_result = False
@@ -82,119 +297,42 @@ def handle_operational_error(error):
 @app.route('/api/card-list/<string:id>', methods=['GET'])
 def get_card_list(id):
     try:
-        card_list = CardList.query.get(id)
-        if not card_list:
+        result = db.session.execute(text("""
+            SELECT cl.id, cl.name, c.*
+            FROM card_lists cl
+            LEFT JOIN card_list_items cli ON cl.id = cli.list_id
+            LEFT JOIN cards c ON cli.card_id = c.id
+            WHERE cl.id = :list_id
+        """), {'list_id': id}).fetchall()
+
+        if not result:
             return jsonify({'error': 'Card list not found'}), 404
 
-        cards = []
-        for item in card_list.items:
-            cards.append({
-                'id': item.card_id,
-                'name': item.name,
-                'set': item.set_code,
-                'set_name': item.set_name,
-                'image_uris': json.loads(item.image_uris) if item.image_uris else {},
-                'price': float(item.price) if item.price else 0,
-                'foil_price': float(item.foil_price) if item.foil_price else 0,
-                'collector_number': item.collector_number,
-                'quantity': item.quantity
-            })
+        card_list = {
+            'id': result[0].id,
+            'name': result[0].name,
+            'cards': []
+        }
 
-        return jsonify({
-            'id': card_list.id,
-            'name': card_list.name,
-            'cards': cards
-        })
+        for row in result:
+            if row.card_id:
+                card_list['cards'].append({
+                    'id': row.card_id,
+                    'name': row.name,
+                    'set': row.set,
+                    'set_name': row.set_name,
+                    'image_uris': json.loads(row.image_uris) if row.image_uris else {},
+                    'price': float(row.price) if row.price else 0,
+                    'foil_price': float(row.foil_price) if row.foil_price else 0,
+                    'collector_number': row.collector_number,
+                    'quantity': row.quantity
+                })
+
+        return jsonify(card_list)
     except Exception as e:
+        db.session.rollback()
         app.logger.error(f"Error: {str(e)}")
         return jsonify({'error': 'An error occurred'}), 500
-
-@app.route('/card-list/<string:id>', methods=['GET'])
-def view_card_list(id):
-    try:
-        card_list = CardList.query.get(id)
-        if not card_list:
-            return "Card list not found", 404
-
-        cards = []
-        for item in card_list.items:
-            cards.append({
-                'name': item.name,
-                'set': item.set_code,
-                'quantity': item.quantity,
-                'price': float(item.price) if item.price else 0,
-            })
-
-        html_template = """
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>{{ list_name }}</title>
-            <style>
-                body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-                h1 { color: #333; }
-                table { width: 100%; border-collapse: collapse; }
-                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                th { background-color: #f2f2f2; }
-            </style>
-        </head>
-        <body>
-            <h1>{{ list_name }}</h1>
-            <table>
-                <tr>
-                    <th>Name</th>
-                    <th>Set</th>
-                    <th>Quantity</th>
-                    <th>Price</th>
-                </tr>
-                {% for card in cards %}
-                <tr>
-                    <td>{{ card.name }}</td>
-                    <td>{{ card.set }}</td>
-                    <td>{{ card.quantity }}</td>
-                    <td>${{ "%.2f"|format(card.price) }}</td>
-                </tr>
-                {% endfor %}
-            </table>
-        </body>
-        </html>
-        """
-
-        return render_template_string(html_template, list_name=card_list.name, cards=cards)
-    except Exception as e:
-        app.logger.error(f"Error: {str(e)}")
-        return "An error occurred", 500
-
-@app.route('/api/card-list/<string:id>/qr', methods=['GET'])
-def get_card_list_qr(id):
-    try:
-        card_list = CardList.query.get(id)
-        if not card_list:
-            return jsonify({'error': 'Card list not found'}), 404
-
-        # Generate the URL for the card list
-        list_url = request.host_url + f"card-list/{id}"
-
-        # Create QR code
-        qr = qrcode.QRCode(version=1, box_size=10, border=5)
-        qr.add_data(list_url)
-        qr.make(fit=True)
-        img = qr.make_image(fill_color="black", back_color="white")
-
-        # Save QR code to a BytesIO object
-        buffered = BytesIO()
-        img.save(buffered)
-        img_str = base64.b64encode(buffered.getvalue()).decode()
-
-        return jsonify({
-            'qr_code': img_str,
-            'url': list_url
-        })
-    except Exception as e:
-        app.logger.error(f"Error generating QR code: {str(e)}")
-        return jsonify({'error': 'An error occurred while generating the QR code'}), 500
 
 @app.route('/api/card-list/<string:id>', methods=['PATCH'])
 def update_card_list_name(id):
@@ -363,6 +501,48 @@ def fetch_card_data(cards):
             })
     return card_data
 
+@app.route('/api/get-local-ip', methods=['GET'])
+def get_local_ip():
+    try:
+        hostname = socket.gethostname()
+        local_ip = socket.gethostbyname(hostname)
+        return jsonify({'ip': local_ip})
+    except Exception as e:
+        app.logger.error(f"Error getting local IP: {str(e)}")
+        return jsonify({'error': 'Unable to retrieve local IP'}), 500
+
+@app.route('/', methods=['GET'])
+def redirect_to_list():
+    list_id = request.args.get('id')
+    if list_id:
+        return redirect(f'/card-list/{list_id}')
+    return "No list ID provided", 400
+
+@app.route('/api/card-list/<string:id>', methods=['GET'])
+def serve_card_list(id):
+    card_list = CardList.query.get(id)
+    if card_list is None:
+        return jsonify({"error": "Card list not found"}), 404
+    
+    items = CardListItem.query.filter_by(list_id=id).all()
+    cards = [{
+        "id": item.card_id,
+        "name": item.name,
+        "set": item.set_code,
+        "set_name": item.set_name,
+        "image_uris": json.loads(item.image_uris) if item.image_uris else {},
+        "price": float(item.price) if item.price else 0,
+        "foil_price": float(item.foil_price) if item.foil_price else 0,
+        "collector_number": item.collector_number,
+    } for item in items]
+    
+    return jsonify({
+        "id": card_list.id,
+        "name": card_list.name,
+        "cards": cards
+    })
+
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     # Check database connection
@@ -380,28 +560,27 @@ def health_check():
 
 if __name__ == '__main__':
     with app.app_context():
-        db.create_all()
-        # Ensure the 'name' and 'quantity' columns exist in the card_list_items table
-        with db.engine.connect() as connection:
-            connection.execute(text("""
-                DO $$
-                BEGIN
-                    IF NOT EXISTS (
-                        SELECT FROM information_schema.columns
-                        WHERE table_name = 'card_list_items' AND column_name = 'name'
-                    ) THEN
-                        ALTER TABLE card_list_items
-                        ADD COLUMN name VARCHAR(255) NOT NULL DEFAULT '';
-                    END IF;
-
-                    IF NOT EXISTS (
-                        SELECT FROM information_schema.columns
-                        WHERE table_name = 'card_list_items' AND column_name = 'quantity'
-                    ) THEN
-                        ALTER TABLE card_list_items
-                        ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1;
-                    END IF;
-                END $$;
-            """))
+        # Remove db.create_all() and any schema changes to avoid altering the database
         setup_db_events(app)
-    app.run(host='0.0.0.0', port=5000, debug=True)
+
+    # Run the Flask app, accessible on your local network
+    app.run(debug=True, host='0.0.0.0', port=5000)
+
+
+==== .env ====
+
+# .env
+
+VITE_API_URL=http://localhost:5000/
+
+==== .env.flask ====
+
+# .env.flask
+
+DATABASE_URI=postgresql://gluth:Caprisun1!@192.168.1.126:5432/mtg_collection_kiosk
+SECRET_KEY=you-will-never-guess
+FLASK_APP=main.py
+# Redis configuration (remove if not using Redis)
+# REDIS_HOST=localhost
+# REDIS_PORT=6379
+# REDIS_DB=0
