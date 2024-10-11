@@ -287,12 +287,21 @@ def fetch_card_data(cards):
             })
     return card_data
 
+import netifaces
+
 @app.route('/api/get-local-ip', methods=['GET'])
 def get_local_ip():
     try:
-        hostname = socket.gethostname()
-        local_ip = socket.gethostbyname(hostname)
-        return jsonify({'ip': local_ip})
+        interfaces = netifaces.interfaces()
+        for iface in interfaces:
+            addrs = netifaces.ifaddresses(iface)
+            if netifaces.AF_INET in addrs:
+                for addr in addrs[netifaces.AF_INET]:
+                    ip = addr['addr']
+                    # Exclude loopback and Docker addresses
+                    if not ip.startswith('127.') and not ip.startswith('172.'):
+                        return jsonify({'ip': ip})
+        return jsonify({'error': 'No valid IP found'}), 500
     except Exception as e:
         app.logger.error(f"Error getting local IP: {str(e)}")
         return jsonify({'error': 'Unable to retrieve local IP'}), 500
