@@ -318,17 +318,19 @@ def handle_exception(e):
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_frontend(path):
-    logging.debug(f"Requested path: {path}")
+    logging.info(f"Requested path: {path}")
     if path.startswith('api'):
         return jsonify({'error': 'Not found'}), 404
     try:
         if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+            logging.info(f"Serving file: {path}")
             return send_from_directory(app.static_folder, path)
         else:
+            logging.info(f"Serving index.html for path: {path}")
             return send_from_directory(app.static_folder, 'index.html')
     except Exception as e:
         logging.error(f"Error serving {path}: {str(e)}")
-        return send_from_directory(app.static_folder, 'index.html')
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.errorhandler(404)
 def not_found(e):

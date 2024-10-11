@@ -19,11 +19,13 @@ function Home({ handleFileUpload }: { handleFileUpload: (file: File) => void }) 
 
 function App() {
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
   const handleFileUpload = async (file: File) => {
     setIsLoading(true);
+    setError(null);
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -33,7 +35,7 @@ function App() {
       const response = await fetch(`${API_URL}/api/upload`, {
         method: 'POST',
         body: formData,
-        mode: 'cors', // Explicitly set CORS mode
+        mode: 'cors',
       });
 
       console.log('Response status:', response.status);
@@ -48,7 +50,7 @@ function App() {
       navigate(`/card-list/${result.id}`);
     } catch (error) {
       console.error('Error processing file:', error);
-      alert(`Error processing file: ${error instanceof Error ? error.message : String(error)}`);
+      setError(error instanceof Error ? error.message : String(error));
     } finally {
       setIsLoading(false);
     }
@@ -59,6 +61,12 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-100 p-8">
       <h1 className="text-4xl font-bold text-center mb-8">MTG Card Uploader</h1>
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+          <strong className="font-bold">Error: </strong>
+          <span className="block sm:inline">{error}</span>
+        </div>
+      )}
       <Routes>
         <Route path="/" element={<Home handleFileUpload={handleFileUpload} />} />
         <Route path="/card-list/:id" element={<CardListWrapper />} />
