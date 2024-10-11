@@ -138,7 +138,7 @@ def update_card_list_name(id):
         app.logger.error(f"Error: {str(e)}")
         return jsonify({'error': 'An error occurred'}), 500
 
-@app.route('/api/upload', methods=['POST'])
+@app.route('/upload', methods=['POST'])
 def upload_file():
     app.logger.info("Upload request received")
     app.logger.debug(f"Request files: {request.files}")
