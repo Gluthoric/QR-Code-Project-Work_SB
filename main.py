@@ -1,9 +1,10 @@
-from flask import Flask, jsonify, request, render_template_string, redirect, send_from_directory
+# main.py
+
+from flask import Flask, jsonify, request, send_from_directory
 import os
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from dotenv import load_dotenv
-import os
 import uuid
 from werkzeug.utils import secure_filename
 import csv
@@ -13,10 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError, OperationalError
 from sqlalchemy.orm import relationship
 import json
 import logging
-import qrcode
-from io import BytesIO
-import base64
-import socket
+import netifaces
 
 # Load environment variables from .env.flask
 load_dotenv('.env.flask')
@@ -24,6 +22,7 @@ load_dotenv('.env.flask')
 app = Flask(__name__, static_folder='frontend/build', static_url_path='')
 CORS(app)  # Enable CORS for all routes
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
 # Configure SQLAlchemy
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -81,6 +80,36 @@ def handle_operational_error(error):
     return jsonify({'error': 'Database connection error. Please try again later.'}), 503
 
 # API routes
+
+@app.route('/api/card-list/<string:id>', methods=['GET'])
+def get_card_list(id):
+    try:
+        card_list = CardList.query.get(id)
+        if not card_list:
+            return jsonify({'error': 'Card list not found'}), 404
+
+        items = CardListItem.query.filter_by(list_id=id).all()
+        cards = [{
+            "id": item.card_id,
+            "name": item.name,
+            "set": item.set_code,
+            "set_name": item.set_name,
+            "image_uris": item.image_uris or {},
+            "price": float(item.price) if item.price else 0,
+            "foil_price": float(item.foil_price) if item.foil_price else 0,
+            "collector_number": item.collector_number,
+            "quantity": item.quantity
+        } for item in items]
+
+        return jsonify({
+            "id": card_list.id,
+            "name": card_list.name,
+            "cards": cards
+        })
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error: {str(e)}")
+        return jsonify({'error': 'An error occurred'}), 500
 
 @app.route('/api/card-list/<string:id>', methods=['PATCH'])
 def update_card_list_name(id):
@@ -149,7 +178,7 @@ def upload_file():
                             set_code=card_info['set'],
                             set_name=card_info['set_name'],
                             collector_number=card_info['collector_number'],
-                            image_uris=json.dumps(card_info['image_uris']),
+                            image_uris=card_info['image_uris'],
                             price=card_info['price'],
                             foil_price=card_info['foil_price'],
                             quantity=1
@@ -249,8 +278,6 @@ def fetch_card_data(cards):
             })
     return card_data
 
-import netifaces
-
 @app.route('/api/get-local-ip', methods=['GET'])
 def get_local_ip():
     try:
@@ -268,32 +295,6 @@ def get_local_ip():
         app.logger.error(f"Error getting local IP: {str(e)}")
         return jsonify({'error': 'Unable to retrieve local IP'}), 500
 
-
-@app.route('/api/card-list/<string:id>', methods=['GET'])
-def serve_card_list(id):
-    card_list = CardList.query.get(id)
-    if card_list is None:
-        return jsonify({"error": "Card list not found"}), 404
-    
-    items = CardListItem.query.filter_by(list_id=id).all()
-    cards = [{
-        "id": item.card_id,
-        "name": item.name,
-        "set": item.set_code,
-        "set_name": item.set_name,
-        "image_uris": json.loads(item.image_uris) if item.image_uris else {},
-        "price": float(item.price) if item.price else 0,
-        "foil_price": float(item.foil_price) if item.foil_price else 0,
-        "collector_number": item.collector_number,
-    } for item in items]
-    
-    return jsonify({
-        "id": card_list.id,
-        "name": card_list.name,
-        "cards": cards
-    })
-
-
 @app.route('/api/health', methods=['GET'])
 def health_check():
     # Check database connection
@@ -309,20 +310,20 @@ def health_check():
         'database': db_status
     })
 
-# Serve React App
+# Serve React App (must be after API routes to avoid conflicts)
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_react_app(path):
-    if path != "" and os.path.exists(f'frontend/build/{path}'):
-        return send_from_directory('frontend/build', path)
+    if path.startswith('api/'):
+        # Let Flask handle API routes
+        return
+    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+        return send_from_directory(app.static_folder, path)
     else:
-        return send_from_directory('frontend/build', 'index.html')
+        return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == '__main__':
     with app.app_context():
-        # Remove db.create_all() and any schema changes to avoid altering the database
         setup_db_events(app)
-
     # Run the Flask app, accessible on your local network
     app.run(debug=True, host='0.0.0.0', port=5000)
-
