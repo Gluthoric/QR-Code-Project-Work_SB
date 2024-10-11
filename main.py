@@ -298,16 +298,25 @@ def health_check():
         'database': db_status
     })
 
-# Serve React static files
+# Serve static files
+@app.route('/assets/<path:filename>')
+def serve_static_files(filename):
+    return send_from_directory(os.path.join(app.static_folder, 'assets'), filename)
+
+# Serve API routes and handle all other requests by returning index.html
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_frontend(path):
+    # If the path starts with 'api', return 404 since it's not a frontend route
     if path.startswith('api'):
         return jsonify({'error': 'Not found'}), 404
-    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+
+    # If the path is a valid static file, serve it
+    if os.path.exists(os.path.join(app.static_folder, path)):
         return send_from_directory(app.static_folder, path)
-    else:
-        return send_from_directory(app.static_folder, 'index.html')
+
+    # For all other routes, serve the index.html (React frontend)
+    return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000)
