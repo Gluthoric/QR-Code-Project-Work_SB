@@ -1,7 +1,7 @@
 // src/App.tsx
 
 import React, { useState } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import FileUploader from './components/FileUploader';
 import CardListWrapper from './components/CardListWrapper';
 
@@ -20,6 +20,7 @@ function Home({ handleFileUpload }: { handleFileUpload: (file: File) => void }) 
 function App() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleFileUpload = async (file: File) => {
     setIsLoading(true);
@@ -52,6 +53,8 @@ function App() {
       setIsLoading(false);
     }
   };
+
+  console.log('Current path:', location.pathname);
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
