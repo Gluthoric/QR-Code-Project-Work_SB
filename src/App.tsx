@@ -5,7 +5,7 @@ import QRCodeGenerator from './components/QRCodeGenerator';
 import { getCardsFromLocalAPI } from './utils/api';
 import { Card } from './types';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 function App() {
   const [cards, setCards] = useState<Card[]>([]);
@@ -15,10 +15,16 @@ function App() {
   const [localIpAddress, setLocalIpAddress] = useState('');
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const id = urlParams.get('id');
-    if (id) {
-      fetchCardList(id);
+    const rootElement = document.getElementById('root');
+    const cardListId = rootElement?.getAttribute('data-card-list-id');
+    if (cardListId) {
+      fetchCardList(cardListId);
+    } else {
+      const urlParams = new URLSearchParams(window.location.search);
+      const id = urlParams.get('id');
+      if (id) {
+        fetchCardList(id);
+      }
     }
     fetchLocalIpAddress();
   }, []);

@@ -306,9 +306,26 @@ def redirect_to_list():
 
 @app.route('/card-list/<string:id>', methods=['GET'])
 def serve_card_list(id):
-    # Here, you would typically render your React app
-    # For now, we'll just return a placeholder
-    return f"Card List {id}"
+    card_list = CardList.query.get(id)
+    if card_list is None:
+        return "Card list not found", 404
+    
+    # Render the React app with the card list data
+    return render_template_string("""
+        <!doctype html>
+        <html lang="en">
+          <head>
+            <meta charset="UTF-8" />
+            <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <title>{{ card_list.name }}</title>
+          </head>
+          <body>
+            <div id="root" data-card-list-id="{{ card_list.id }}"></div>
+            <script type="module" src="/src/main.tsx"></script>
+          </body>
+        </html>
+    """, card_list=card_list)
 
 
 @app.route('/api/health', methods=['GET'])
