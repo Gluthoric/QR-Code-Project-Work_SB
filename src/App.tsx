@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FileUploader } from './components/FileUploader';
-import CardGrid from './components/CardGrid';
+import CardGrid from './components/CardGrid.tsx';
 import QRCodeGenerator from './components/QRCodeGenerator';
 import { getCardsFromLocalAPI } from './utils/api';
 import { Card } from './types';
