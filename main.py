@@ -1,7 +1,7 @@
 # main.py
 
-from flask import Flask, jsonify, request, send_from_directory
 import os
+from flask import Flask, jsonify, request, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -19,7 +19,12 @@ import netifaces
 # Load environment variables from .env.flask
 load_dotenv('.env.flask')
 
-app = Flask(__name__, static_folder='frontend/build', static_url_path='')
+# Initialize Flask with absolute path for static_folder
+app = Flask(
+    __name__,
+    static_folder=os.path.join(os.path.dirname(__file__), 'frontend', 'build'),
+    static_url_path=''
+)
 CORS(app)  # Enable CORS for all routes
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
