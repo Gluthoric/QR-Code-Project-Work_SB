@@ -21,7 +21,7 @@ import netifaces
 load_dotenv('.env.flask')
 
 # Initialize Flask
-app = Flask(__name__, static_folder='../frontend/dist', static_url_path='/')
+app = Flask(__name__, static_folder='/home/gluth/mtg_scans/QR-Code-Project-Work_SB/frontend/dist', static_url_path='/')
 
 CORS(app)  # Enable CORS for all routes
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -322,13 +322,10 @@ def serve_frontend(path):
     if path.startswith('api'):
         return jsonify({'error': 'Not found'}), 404
     try:
-        return send_from_directory(app.static_folder, path)
-    except NotFound:
-        try:
+        if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+            return send_from_directory(app.static_folder, path)
+        else:
             return send_from_directory(app.static_folder, 'index.html')
-        except NotFound:
-            logging.error(f"File not found: {path}")
-            return jsonify({'error': 'File not found'}), 404
     except Exception as e:
         logging.error(f"Error serving {path}: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
