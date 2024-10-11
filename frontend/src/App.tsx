@@ -1,10 +1,9 @@
 // src/App.tsx
 
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import FileUploader from './components/FileUploader';
 import CardListWrapper from './components/CardListWrapper';
-import { Card } from './types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 console.log('API_URL:', API_URL); // For debugging
@@ -49,23 +48,21 @@ function App() {
   };
 
   return (
-    <Router>
-      <div className="min-h-screen bg-gray-100 p-8">
-        <h1 className="text-4xl font-bold text-center mb-8">MTG Card Uploader</h1>
-        <Routes>
-          <Route path="/" element={<Home handleFileUpload={handleFileUpload} />} />
-          <Route path="/card-list/:id" element={<CardListWrapper />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-        {isLoading && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-            <div className="bg-white p-4 rounded-lg shadow-lg">
-              <p className="text-lg font-semibold">Loading...</p>
-            </div>
+    <div className="min-h-screen bg-gray-100 p-8">
+      <h1 className="text-4xl font-bold text-center mb-8">MTG Card Uploader</h1>
+      <Routes>
+        <Route path="/" element={<Home handleFileUpload={handleFileUpload} />} />
+        <Route path="/card-list/:id" element={<CardListWrapper />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      {isLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white p-4 rounded-lg shadow-lg">
+            <p className="text-lg font-semibold">Loading...</p>
           </div>
-        )}
-      </div>
-    </Router>
+        </div>
+      )}
+    </div>
   );
 }
 
