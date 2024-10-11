@@ -21,7 +21,7 @@ import socket
 # Load environment variables from .env.flask
 load_dotenv('.env.flask')
 
-app = Flask(__name__, static_folder='/home/gluth/mtg_scans/QR-Code-Project-Work_SB/dist', static_url_path='')
+app = Flask(__name__, static_folder='frontend/build', static_url_path='')
 CORS(app)  # Enable CORS for all routes
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 # Configure SQLAlchemy
@@ -318,11 +318,11 @@ def health_check():
 # Serve React App
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
-def serve(path):
-    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
-        return send_from_directory(app.static_folder, path)
+def serve_react_app(path):
+    if path != "" and os.path.exists(f'frontend/build/{path}'):
+        return send_from_directory('frontend/build', path)
     else:
-        return send_from_directory(app.static_folder, 'index.html')
+        return send_from_directory('frontend/build', 'index.html')
 
 if __name__ == '__main__':
     with app.app_context():
