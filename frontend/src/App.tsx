@@ -27,21 +27,27 @@ function App() {
       const formData = new FormData();
       formData.append('file', file);
 
+      console.log('Attempting to upload file to:', `${API_URL}/api/upload`);
+
       const response = await fetch(`${API_URL}/api/upload`, {
         method: 'POST',
         body: formData,
+        mode: 'cors', // Explicitly set CORS mode
       });
 
+      console.log('Response status:', response.status);
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
       }
 
       const result = await response.json();
-      // Use navigate to redirect to the card list view
+      console.log('Upload successful, result:', result);
       navigate(`/card-list/${result.id}`);
     } catch (error) {
       console.error('Error processing file:', error);
-      alert('Error processing file. Please try again.');
+      alert(`Error processing file: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsLoading(false);
     }
