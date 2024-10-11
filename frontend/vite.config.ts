@@ -1,12 +1,14 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
   build: {
-    outDir: 'dist',  // Matches the `static_folder` in Flask ('/frontend/dist')
+    outDir: path.resolve(__dirname, '../dist'),  // Output to the Flask static folder
     assetsDir: 'assets',  // Assets will be generated in 'dist/assets'
+    emptyOutDir: true,  // Clean the output directory before building
   },
   server: {
     host: '0.0.0.0',  // Allow access from other devices on the network

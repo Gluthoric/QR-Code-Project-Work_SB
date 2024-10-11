@@ -21,7 +21,7 @@ import netifaces
 load_dotenv('.env.flask')
 
 # Initialize Flask
-app = Flask(__name__, static_folder='/home/gluth/mtg_scans/QR-Code-Project-Work_SB/frontend/dist', static_url_path='/')
+app = Flask(__name__, static_folder='dist', static_url_path='/')
 
 CORS(app)  # Enable CORS for all routes
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -329,6 +329,10 @@ def serve_frontend(path):
     except Exception as e:
         logging.error(f"Error serving {path}: {str(e)}")
         return send_from_directory(app.static_folder, 'index.html')
+
+@app.errorhandler(404)
+def not_found(e):
+    return send_from_directory(app.static_folder, 'index.html')
 
 
 if __name__ == '__main__':
