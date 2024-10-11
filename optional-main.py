@@ -1,6 +1,4 @@
-#main.py backup
-
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template_string
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -14,6 +12,9 @@ from sqlalchemy.exc import SQLAlchemyError, OperationalError
 from sqlalchemy.orm import relationship
 import json
 import logging
+import qrcode
+from io import BytesIO
+import base64
 
 # Load environment variables from .env.flask
 load_dotenv('.env.flask')
@@ -46,14 +47,14 @@ class CardListItem(db.Model):
     image_uris = db.Column(db.JSON)
     price = db.Column(db.Numeric(10, 2))
     foil_price = db.Column(db.Numeric(10, 2))
-    quantity = db.Column(db.Integer, default=1)  # New field for quantity
+    quantity = db.Column(db.Integer, default=1)
     card_list = relationship('CardList', back_populates='items')
 
 def setup_db_events(app):
     @event.listens_for(db.engine, "engine_connect")
     def ping_connection(connection, branch):
         if branch:
-            return  # Skip if this is a nested transaction or sub-connection
+            return
 
         save_should_close_with_result = connection.should_close_with_result
         connection.should_close_with_result = False
@@ -81,42 +82,119 @@ def handle_operational_error(error):
 @app.route('/api/card-list/<string:id>', methods=['GET'])
 def get_card_list(id):
     try:
-        result = db.session.execute(text("""
-            SELECT cl.id, cl.name, c.*
-            FROM card_lists cl
-            LEFT JOIN card_list_items cli ON cl.id = cli.list_id
-            LEFT JOIN cards c ON cli.card_id = c.id
-            WHERE cl.id = :list_id
-        """), {'list_id': id}).fetchall()
-
-        if not result:
+        card_list = CardList.query.get(id)
+        if not card_list:
             return jsonify({'error': 'Card list not found'}), 404
 
-        card_list = {
-            'id': result[0].id,
-            'name': result[0].name,
-            'cards': []
-        }
+        cards = []
+        for item in card_list.items:
+            cards.append({
+                'id': item.card_id,
+                'name': item.name,
+                'set': item.set_code,
+                'set_name': item.set_name,
+                'image_uris': json.loads(item.image_uris) if item.image_uris else {},
+                'price': float(item.price) if item.price else 0,
+                'foil_price': float(item.foil_price) if item.foil_price else 0,
+                'collector_number': item.collector_number,
+                'quantity': item.quantity
+            })
 
-        for row in result:
-            if row.card_id:
-                card_list['cards'].append({
-                    'id': row.card_id,
-                    'name': row.name,
-                    'set': row.set,
-                    'set_name': row.set_name,
-                    'image_uris': json.loads(row.image_uris) if row.image_uris else {},
-                    'price': float(row.price) if row.price else 0,
-                    'foil_price': float(row.foil_price) if row.foil_price else 0,
-                    'collector_number': row.collector_number,
-                    'quantity': row.quantity
-                })
-
-        return jsonify(card_list)
+        return jsonify({
+            'id': card_list.id,
+            'name': card_list.name,
+            'cards': cards
+        })
     except Exception as e:
-        db.session.rollback()
         app.logger.error(f"Error: {str(e)}")
         return jsonify({'error': 'An error occurred'}), 500
+
+@app.route('/card-list/<string:id>', methods=['GET'])
+def view_card_list(id):
+    try:
+        card_list = CardList.query.get(id)
+        if not card_list:
+            return "Card list not found", 404
+
+        cards = []
+        for item in card_list.items:
+            cards.append({
+                'name': item.name,
+                'set': item.set_code,
+                'quantity': item.quantity,
+                'price': float(item.price) if item.price else 0,
+            })
+
+        html_template = """
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{{ list_name }}</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+                h1 { color: #333; }
+                table { width: 100%; border-collapse: collapse; }
+                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                th { background-color: #f2f2f2; }
+            </style>
+        </head>
+        <body>
+            <h1>{{ list_name }}</h1>
+            <table>
+                <tr>
+                    <th>Name</th>
+                    <th>Set</th>
+                    <th>Quantity</th>
+                    <th>Price</th>
+                </tr>
+                {% for card in cards %}
+                <tr>
+                    <td>{{ card.name }}</td>
+                    <td>{{ card.set }}</td>
+                    <td>{{ card.quantity }}</td>
+                    <td>${{ "%.2f"|format(card.price) }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </body>
+        </html>
+        """
+
+        return render_template_string(html_template, list_name=card_list.name, cards=cards)
+    except Exception as e:
+        app.logger.error(f"Error: {str(e)}")
+        return "An error occurred", 500
+
+@app.route('/api/card-list/<string:id>/qr', methods=['GET'])
+def get_card_list_qr(id):
+    try:
+        card_list = CardList.query.get(id)
+        if not card_list:
+            return jsonify({'error': 'Card list not found'}), 404
+
+        # Generate the URL for the card list
+        list_url = request.host_url + f"card-list/{id}"
+
+        # Create QR code
+        qr = qrcode.QRCode(version=1, box_size=10, border=5)
+        qr.add_data(list_url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+
+        # Save QR code to a BytesIO object
+        buffered = BytesIO()
+        img.save(buffered)
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+
+        return jsonify({
+            'qr_code': img_str,
+            'url': list_url
+        })
+    except Exception as e:
+        app.logger.error(f"Error generating QR code: {str(e)}")
+        return jsonify({'error': 'An error occurred while generating the QR code'}), 500
 
 @app.route('/api/card-list/<string:id>', methods=['PATCH'])
 def update_card_list_name(id):
@@ -326,4 +404,4 @@ if __name__ == '__main__':
                 END $$;
             """))
         setup_db_events(app)
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
