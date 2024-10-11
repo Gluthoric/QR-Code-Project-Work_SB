@@ -298,11 +298,16 @@ def health_check():
         'database': db_status
     })
 
-
-
-@app.route('/')
-def serve_frontend():
-    return send_from_directory(app.static_folder, 'index.html')
+# Serve React static files
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_frontend(path):
+    if path.startswith('api'):
+        return jsonify({'error': 'Not found'}), 404
+    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+        return send_from_directory(app.static_folder, path)
+    else:
+        return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
