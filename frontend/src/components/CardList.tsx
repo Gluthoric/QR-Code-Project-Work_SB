@@ -43,7 +43,7 @@ const CardList: React.FC<CardListProps> = ({ listId, listName, setListName }) =>
         const response = await fetch(`${API_URL}/api/card-list/${listId}`);
         if (!response.ok) {
           if (response.status === 404) {
-            throw new Error('Card list not found');
+            throw new Error('Card list not found. The list may have been deleted or the ID is incorrect.');
           }
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -86,6 +86,7 @@ const CardList: React.FC<CardListProps> = ({ listId, listName, setListName }) =>
     return (
       <div className="flex flex-col items-center justify-center h-screen">
         <p className="text-xl font-semibold text-red-600 mb-4">{error}</p>
+        <p className="text-lg mb-4">Please check the list ID and try again.</p>
         <button
           onClick={() => navigate('/')}
           className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
@@ -98,12 +99,26 @@ const CardList: React.FC<CardListProps> = ({ listId, listName, setListName }) =>
 
   return (
     <div className="space-y-8">
-      <QRCodeGenerator
-        url={`http://${localIpAddress}/card-list/${listId}`}
-        name={listName}
-        onNameChange={handleNameChange}
-      />
-      <CardGrid cards={cards} />
+      {!isLoading && cards.length === 0 ? (
+        <div className="text-center">
+          <p className="text-xl font-semibold mb-4">No cards found in this list.</p>
+          <button
+            onClick={() => navigate('/')}
+            className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
+          >
+            Go Back to Home
+          </button>
+        </div>
+      ) : (
+        <>
+          <QRCodeGenerator
+            url={`http://${localIpAddress}/card-list/${listId}`}
+            name={listName}
+            onNameChange={handleNameChange}
+          />
+          <CardGrid cards={cards} />
+        </>
+      )}
       {isLoading && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="bg-white p-4 rounded-lg shadow-lg">
