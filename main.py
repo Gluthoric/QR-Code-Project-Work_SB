@@ -58,20 +58,12 @@ class CardListItem(db.Model):
 
 def setup_db_events(app):
     @event.listens_for(db.engine, "engine_connect")
-    def ping_connection(connection, branch):
-        if branch:
-            return  # Skip if this is a nested transaction or sub-connection
-
-        save_should_close_with_result = connection.should_close_with_result
-        connection.should_close_with_result = False
-
+    def ping_connection(conn):
         try:
-            connection.scalar(text("SELECT 1"))
+            conn.scalar(text("SELECT 1"))
         except Exception:
             app.logger.warning("Database connection failed. Invalidating connection.")
-            connection.invalidate()
-        finally:
-            connection.should_close_with_result = save_should_close_with_result
+            conn.invalidate()
 
 # Global error handler for database errors
 @app.errorhandler(SQLAlchemyError)
@@ -319,12 +311,12 @@ def health_check():
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_react_app(path):
-    if path.startswith('api/'):
-        # Let Flask handle API routes
-        return
+    # Serve React's index.html for all non-API routes
     if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+        app.logger.debug(f"Serving static file: {path}")
         return send_from_directory(app.static_folder, path)
     else:
+        app.logger.debug("Serving index.html")
         return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == '__main__':
