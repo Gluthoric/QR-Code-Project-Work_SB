@@ -34,6 +34,7 @@ function App() {
       const response = await fetch(`${API_URL}/api/get-local-ip`);
       if (response.ok) {
         const data = await response.json();
+        console.log('Fetched local IP address:', data.ip);
         setLocalIpAddress(data.ip);
       } else {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -123,7 +124,7 @@ function App() {
         <div className="space-y-8">
           {listId && (
             <QRCodeGenerator
-              url={`http://${localIpAddress || 'localhost'}:5000/?id=${listId}`}
+              url={`http://${localIpAddress}:5000/?id=${listId}`}
               name={listName}
               onNameChange={handleNameChange}
             />
