@@ -297,6 +297,19 @@ def get_local_ip():
         app.logger.error(f"Error getting local IP: {str(e)}")
         return jsonify({'error': 'Unable to retrieve local IP'}), 500
 
+@app.route('/', methods=['GET'])
+def redirect_to_list():
+    list_id = request.args.get('id')
+    if list_id:
+        return redirect(f'/card-list/{list_id}')
+    return "No list ID provided", 400
+
+@app.route('/card-list/<string:id>', methods=['GET'])
+def serve_card_list(id):
+    # Here, you would typically render your React app
+    # For now, we'll just return a placeholder
+    return f"Card List {id}"
+
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
