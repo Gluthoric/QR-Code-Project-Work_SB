@@ -6,7 +6,7 @@ interface FileUploaderProps {
   onFileUpload: (file: File) => void;
 }
 
-const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
+export const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       console.log('File accepted:', acceptedFiles[0].name);
