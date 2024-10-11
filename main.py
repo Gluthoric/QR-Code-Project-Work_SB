@@ -21,7 +21,7 @@ import netifaces
 load_dotenv('.env.flask')
 
 # Initialize Flask
-app = Flask(__name__, static_folder='frontend/dist', static_url_path='/')
+app = Flask(__name__, static_folder='../frontend/dist', static_url_path='/')
 
 CORS(app)  # Enable CORS for all routes
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -299,21 +299,40 @@ def health_check():
         'database': db_status
     })
 
-# Serve static files
+# Serve static files like JavaScript and CSS
 @app.route('/assets/<path:filename>')
 def serve_static_files(filename):
     return send_from_directory(os.path.join(app.static_folder, 'assets'), filename)
 
 # Serve API routes and handle all other requests by returning index.html
+import traceback
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # Log the full traceback
+    app.logger.error('An unhandled exception occurred:')
+    app.logger.error(traceback.format_exc())
+    return jsonify(error=str(e)), 500
+
+# Update the serve_frontend function
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_frontend(path):
+    logging.debug(f"Requested path: {path}")
     if path.startswith('api'):
         return jsonify({'error': 'Not found'}), 404
     try:
         return send_from_directory(app.static_folder, path)
     except NotFound:
-        return send_from_directory(app.static_folder, 'index.html')
+        try:
+            return send_from_directory(app.static_folder, 'index.html')
+        except NotFound:
+            logging.error(f"File not found: {path}")
+            return jsonify({'error': 'File not found'}), 404
+    except Exception as e:
+        logging.error(f"Error serving {path}: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
