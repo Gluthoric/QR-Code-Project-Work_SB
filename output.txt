@@ -1,6 +1,317 @@
-==== src/components/QRCodeGenerator.tsx ====
+==== frontend/src/vite-env.d.ts ====
 
-import React, { useState } from 'react';
+/// <reference types="vite/client" />
+
+==== frontend/src/index.css ====
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+==== frontend/src/App.tsx ====
+
+// src/App.tsx
+
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useParams, Navigate } from 'react-router-dom';
+import FileUploader from './components/FileUploader';
+import CardGrid from './components/CardGrid';
+import QRCodeGenerator from './components/QRCodeGenerator';
+import { Card } from './types';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+console.log('API_URL:', API_URL); // For debugging
+
+// Home Component: Displays the File Uploader
+function Home({ handleFileUpload }: { handleFileUpload: (file: File) => void }) {
+  return (
+    <div className="max-w-md mx-auto">
+      <FileUploader onFileUpload={handleFileUpload} />
+    </div>
+  );
+}
+
+// CardList Component: Displays the QR Code and Card Grid
+function CardList({ listId, listName, setListName }: { listId: string; listName: string; setListName: (name: string) => void }) {
+  const [cards, setCards] = useState<Card[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [localIpAddress, setLocalIpAddress] = useState('');
+
+  useEffect(() => {
+    const fetchLocalIpAddress = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/get-local-ip`);
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Fetched local IP address:', data.ip);
+          setLocalIpAddress(data.ip);
+        } else {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+      } catch (error) {
+        console.error('Error fetching local IP address:', error);
+        setLocalIpAddress('localhost'); // Fallback to localhost if unable to fetch IP
+      }
+    };
+
+    const fetchCardList = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch(`${API_URL}/api/card-list/${listId}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        setCards(data.cards);
+        setListName(data.name);
+      } catch (error) {
+        console.error('Error fetching card list:', error);
+        alert('Error fetching card list. Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLocalIpAddress();
+    fetchCardList();
+  }, [listId, setListName]);
+
+  const handleNameChange = async (newName: string) => {
+    setListName(newName);
+    try {
+      const response = await fetch(`${API_URL}/api/card-list/${listId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: newName }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Error updating list name:', error);
+      alert('Error updating list name. Please try again.');
+    }
+  };
+
+  const handleDownload = () => {
+    // Logic to download QR code can be handled within the QRCodeGenerator component
+  };
+
+  return (
+    <div className="space-y-8">
+      <QRCodeGenerator
+        url={`http://${localIpAddress}/card-list/${listId}`}
+        name={listName}
+        onNameChange={handleNameChange}
+      />
+      <CardGrid cards={cards} />
+      {isLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white p-4 rounded-lg shadow-lg">
+            <p className="text-lg font-semibold">Loading...</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Wrapper Component to Extract URL Parameters
+function CardListWrapper() {
+  const { id } = useParams<{ id: string }>();
+
+  if (!id) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <CardList listId={id} listName="" setListName={() => {}} />;
+}
+
+function App() {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleFileUpload = async (file: File) => {
+    setIsLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_URL}/api/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      // Redirect to the card list view using React Router's navigation
+      window.location.href = `/card-list/${result.id}`;
+    } catch (error) {
+      console.error('Error processing file:', error);
+      alert('Error processing file. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Router>
+      <div className="min-h-screen bg-gray-100 p-8">
+        <h1 className="text-4xl font-bold text-center mb-8">MTG Card Uploader</h1>
+        <Routes>
+          <Route path="/" element={<Home handleFileUpload={handleFileUpload} />} />
+          <Route path="/card-list/:id" element={<CardListWrapper />} />
+        </Routes>
+        {isLoading && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+            <div className="bg-white p-4 rounded-lg shadow-lg">
+              <p className="text-lg font-semibold">Loading...</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </Router>
+  );
+}
+
+export default App;
+
+==== frontend/src/main.tsx ====
+
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import App from './App.tsx'
+import './index.css'
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)
+
+==== frontend/src/types.ts ====
+
+export interface CardData {
+  id: string;
+  name: string;
+  set: string;
+  price: number;
+}
+
+export interface Card {
+  id: string;
+  name: string;
+  set: string;
+  set_name: string;
+  image_uris: {
+    small: string;
+    normal: string;
+    large: string;
+  };
+  price: number;
+  foil_price: number;
+  collector_number: string;
+}
+
+export interface LocalAPICard {
+  id: number;
+  name: string;
+  // Add other properties as needed for the local API response
+}
+
+==== frontend/src/components/CardGrid.tsx ====
+
+import React from 'react';
+import { Card } from '../types';
+
+interface CardGridProps {
+  cards: Card[];
+}
+
+const CardGrid: React.FC<CardGridProps> = ({ cards }) => {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      {cards.map((card) => (
+        <div key={card.id} className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col">
+          {card.image_uris?.normal && (
+            <img src={card.image_uris.normal} alt={card.name} className="w-full h-auto object-cover" />
+          )}
+          <div className="p-4 text-center flex-grow flex flex-col justify-center">
+            <h3 className="font-bold text-lg mb-2">{card.name}</h3>
+            <p className="text-gray-600 mb-1">Set: {card.set_name} ({card.set})</p>
+            <p className="text-gray-600 mb-1">Collector Number: {card.collector_number}</p>
+            <p className="text-green-600 font-semibold mb-1">Price: ${card.price.toFixed(2)}</p>
+            {card.foil_price && card.foil_price > 0 && (
+              <p className="text-blue-600 font-semibold mb-1">Foil Price: ${card.foil_price.toFixed(2)}</p>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+export default CardGrid;
+==== frontend/src/components/FileUploader.tsx ====
+
+import React, { useCallback } from 'react';
+import { useDropzone } from 'react-dropzone';
+import { Upload } from 'lucide-react';
+
+interface FileUploaderProps {
+  onFileUpload: (file: File) => void;
+}
+
+export const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    if (acceptedFiles.length > 0) {
+      console.log('File accepted:', acceptedFiles[0].name);
+      onFileUpload(acceptedFiles[0]);
+    } else {
+      console.log('No files were accepted');
+    }
+  }, [onFileUpload]);
+
+  const { getRootProps, getInputProps, isDragActive, fileRejections } = useDropzone({
+    onDrop,
+    accept: {
+      'text/csv': ['.csv'],
+    },
+    multiple: false,
+  });
+
+  console.log('FileRejections:', fileRejections);
+
+  return (
+    <div
+      {...getRootProps()}
+      className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+        isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+      }`}
+    >
+      <input {...getInputProps()} />
+      <Upload className="mx-auto h-12 w-12 text-gray-400" />
+      <p className="mt-2 text-sm font-medium text-gray-900">
+        {isDragActive ? 'Drop the CSV file here' : 'Drag & drop a CSV file here, or click to select one'}
+      </p>
+      <p className="mt-1 text-xs text-gray-500">
+        CSV should contain columns: Scryfall ID, Name, Set Code, Price
+      </p>
+    </div>
+  );
+};
+
+export default FileUploader;
+
+==== frontend/src/components/QRCodeGenerator.tsx ====
+
+// src/components/QRCodeGenerator.tsx
+
+import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface QRCodeGeneratorProps {
@@ -11,7 +322,7 @@ interface QRCodeGeneratorProps {
 
 const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ url, name, onNameChange }) => {
   const handleDownload = () => {
-    const svg = document.getElementById('qr-code') as HTMLElement;
+    const svg = document.getElementById('qr-code') as SVGSVGElement;
     const svgData = new XMLSerializer().serializeToString(svg);
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -60,164 +371,145 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ url, name, onNameChan
 
 export default QRCodeGenerator;
 
-==== src/App.tsx ====
+==== frontend/src/utils/api.ts ====
 
-import React, { useState, useEffect } from 'react';
-import { FileUploader } from './components/FileUploader';
-import CardGrid from './components/CardGrid.tsx';
-import QRCodeGenerator from './components/QRCodeGenerator';
-import { getCardsFromLocalAPI } from './utils/api';
-import { Card } from './types';
+import { CardData, Card, LocalAPICard } from '../types';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-console.log('API_URL:', API_URL); // Add this line for debugging
+const SCRYFALL_API = 'https://api.scryfall.com/cards';
+const LOCAL_API = import.meta.env.VITE_API_URL;
 
-function App() {
-  const [cards, setCards] = useState<Card[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [listId, setListId] = useState<string | null>(null);
-  const [listName, setListName] = useState('');
-  const [localIpAddress, setLocalIpAddress] = useState('');
-
-  useEffect(() => {
-    const rootElement = document.getElementById('root');
-    const cardListId = rootElement?.getAttribute('data-card-list-id');
-    if (cardListId) {
-      fetchCardList(cardListId);
-    } else {
-      const urlParams = new URLSearchParams(window.location.search);
-      const id = urlParams.get('id');
-      if (id) {
-        fetchCardList(id);
-      }
+export const fetchCardData = async (cards: CardData[]): Promise<Card[]> => {
+  const fetchPromises = cards.map(async (card) => {
+    if (!card.id) {
+      console.warn(`Skipping card with missing ID: ${card.name}`);
+      return null;
     }
-    fetchLocalIpAddress();
-  }, []);
-
-  const fetchLocalIpAddress = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/get-local-ip`);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Fetched local IP address:', data.ip);
-        setLocalIpAddress(data.ip);
-      } else {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-    } catch (error) {
-      console.error('Error fetching local IP address:', error);
-      setLocalIpAddress('localhost'); // Fallback to localhost if unable to fetch IP
-    }
-  };
-
-  const fetchCardList = async (id: string) => {
-    setIsLoading(true);
-    try {
-      const response = await fetch(`${API_URL}/api/card-list/${id}`);
+      const response = await fetch(`${SCRYFALL_API}/${card.id}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      setCards(data.cards);
-      setListId(id);
-      setListName(data.name);
+      return {
+        id: data.id,
+        name: data.name,
+        set: data.set,
+        set_name: data.set_name,
+        image_uris: data.image_uris,
+        price: parseFloat(data.prices.usd || '0'),
+        foil_price: parseFloat(data.prices.usd_foil || '0'),
+        collector_number: data.collector_number,
+      } as Card;
     } catch (error) {
-      console.error('Error fetching card list:', error);
-      alert('Error fetching card list. Please try again.');
-    } finally {
-      setIsLoading(false);
+      console.error(`Error fetching data for card ${card.name || 'Unknown'}:`, error);
+      return null;
     }
-  };
+  });
 
-  const handleFileUpload = async (file: File) => {
-    setIsLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
+  return (await Promise.all(fetchPromises)).filter((card): card is Card => card !== null);
+};
 
-      const response = await fetch(`${API_URL}/api/upload`, {
-        method: 'POST',
-        body: formData,
-      });
+// New functions for interacting with our local Flask API
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      setCards(result.cards);
-      setListId(result.id);
-      setListName(result.name);
-    } catch (error) {
-      console.error('Error processing file:', error);
-      alert('Error processing file. Please try again.');
-    } finally {
-      setIsLoading(false);
+export const getCardsFromLocalAPI = async (): Promise<LocalAPICard[]> => {
+  try {
+    const response = await fetch(`${LOCAL_API}/cards`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching cards from local API:', error);
+    return [];
+  }
+};
 
-  const handleNameChange = async (newName: string) => {
-    setListName(newName);
-    if (listId) {
-      try {
-        const response = await fetch(`${API_URL}/api/card-list/${listId}`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ name: newName }),
-        });
+export const testRedisConnection = async (): Promise<string | null> => {
+  try {
+    const response = await fetch(`${LOCAL_API}/redis-test`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.redis_value;
+  } catch (error) {
+    console.error('Error testing Redis connection:', error);
+    return null;
+  }
+};
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+==== frontend/src/utils/csvProcessor.ts ====
+
+import Papa from 'papaparse';
+import { CardData } from '../types';
+
+export const processCSV = (file: File): Promise<CardData[]> => {
+  return new Promise((resolve, reject) => {
+    Papa.parse(file, {
+      header: true,
+      complete: (results) => {
+        const cards: CardData[] = results.data
+          .filter((row: any) => row['Scryfall ID'] && row['Name'])
+          .map((row: any) => ({
+            id: row['Scryfall ID'],
+            name: row['Name'],
+            set: row['Set Code'] || '',
+            price: parseFloat(row['Price']) || 0,
+          }));
+        if (cards.length === 0) {
+          reject(new Error('No valid card data found in the CSV file.'));
+        } else {
+          resolve(cards);
         }
-      } catch (error) {
-        console.error('Error updating list name:', error);
-        alert('Error updating list name. Please try again.');
-      }
-    }
-  };
+      },
+      error: (error) => {
+        reject(new Error(`Error parsing CSV: ${error.message}`));
+      },
+    });
+  });
+};
+==== frontend/src/utils/database.ts ====
 
-  return (
-    <div className="min-h-screen bg-gray-100 p-8">
-      <h1 className="text-4xl font-bold text-center mb-8">MTG Card Uploader</h1>
-      {cards.length === 0 ? (
-        <div className="max-w-md mx-auto">
-          <FileUploader onFileUpload={handleFileUpload} />
-        </div>
-      ) : (
-        <div className="space-y-8">
-          {listId && (
-            <QRCodeGenerator
-              url={`http://${localIpAddress}/card-list/${listId}`}
-              name={listName}
-              onNameChange={handleNameChange}
-            />
-          )}
-          <CardGrid cards={cards} />
-        </div>
-      )}
-      {isLoading && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-4 rounded-lg shadow-lg">
-            <p className="text-lg font-semibold">Loading...</p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+import { Pool } from 'pg';
 
-export default App;
+// Note: This is not a recommended approach for production applications.
+// Ideally, database operations should be handled by a separate backend service.
+const pool = new Pool({
+  connectionString: import.meta.env.VITE_DATABASE_URI,
+});
+
+export const query = (text: string, params: any[]) => pool.query(text, params);
+
+export const getClient = () => pool.connect();
+
+console.warn('Warning: Direct database access from the frontend is not recommended for production use.');
+
+==== .env.flask ====
+
+# .env.flask
+
+DATABASE_URI=postgresql://gluth:Caprisun1!@192.168.1.126:5432/mtg_collection_kiosk
+SECRET_KEY=you-will-never-guess
+FLASK_APP=main.py
+# Redis configuration (remove if not using Redis)
+# REDIS_HOST=localhost
+# REDIS_PORT=6379
+# REDIS_DB=0
+==== frontend/.env ====
+
+# .env
+
+VITE_API_URL=http://192.168.1.207:5000/
 
 ==== main.py ====
 
-from flask import Flask, jsonify, request, render_template_string, redirect, send_from_directory
+# main.py
+
 import os
+from flask import Flask, jsonify, request, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from dotenv import load_dotenv
-import os
 import uuid
 from werkzeug.utils import secure_filename
 import csv
@@ -227,17 +519,20 @@ from sqlalchemy.exc import SQLAlchemyError, OperationalError
 from sqlalchemy.orm import relationship
 import json
 import logging
-import qrcode
-from io import BytesIO
-import base64
-import socket
+import netifaces
 
 # Load environment variables from .env.flask
 load_dotenv('.env.flask')
 
-app = Flask(__name__, static_folder='frontend/build', static_url_path='')
+# Initialize Flask with absolute path for static_folder
+app = Flask(
+    __name__,
+    static_folder=os.path.join(os.path.dirname(__file__), 'frontend', 'dist'),
+    static_url_path=''
+)
 CORS(app)  # Enable CORS for all routes
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
 # Configure SQLAlchemy
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -268,20 +563,12 @@ class CardListItem(db.Model):
 
 def setup_db_events(app):
     @event.listens_for(db.engine, "engine_connect")
-    def ping_connection(connection, branch):
-        if branch:
-            return  # Skip if this is a nested transaction or sub-connection
-
-        save_should_close_with_result = connection.should_close_with_result
-        connection.should_close_with_result = False
-
+    def ping_connection(conn):
         try:
-            connection.scalar(text("SELECT 1"))
+            conn.scalar(text("SELECT 1"))
         except Exception:
             app.logger.warning("Database connection failed. Invalidating connection.")
-            connection.invalidate()
-        finally:
-            connection.should_close_with_result = save_should_close_with_result
+            conn.invalidate()
 
 # Global error handler for database errors
 @app.errorhandler(SQLAlchemyError)
@@ -295,6 +582,36 @@ def handle_operational_error(error):
     return jsonify({'error': 'Database connection error. Please try again later.'}), 503
 
 # API routes
+
+@app.route('/api/card-list/<string:id>', methods=['GET'])
+def get_card_list(id):
+    try:
+        card_list = CardList.query.get(id)
+        if not card_list:
+            return jsonify({'error': 'Card list not found'}), 404
+
+        items = CardListItem.query.filter_by(list_id=id).all()
+        cards = [{
+            "id": item.card_id,
+            "name": item.name,
+            "set": item.set_code,
+            "set_name": item.set_name,
+            "image_uris": item.image_uris or {},
+            "price": float(item.price) if item.price else 0,
+            "foil_price": float(item.foil_price) if item.foil_price else 0,
+            "collector_number": item.collector_number,
+            "quantity": item.quantity
+        } for item in items]
+
+        return jsonify({
+            "id": card_list.id,
+            "name": card_list.name,
+            "cards": cards
+        })
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error: {str(e)}")
+        return jsonify({'error': 'An error occurred'}), 500
 
 @app.route('/api/card-list/<string:id>', methods=['PATCH'])
 def update_card_list_name(id):
@@ -363,7 +680,7 @@ def upload_file():
                             set_code=card_info['set'],
                             set_name=card_info['set_name'],
                             collector_number=card_info['collector_number'],
-                            image_uris=json.dumps(card_info['image_uris']),
+                            image_uris=card_info['image_uris'],
                             price=card_info['price'],
                             foil_price=card_info['foil_price'],
                             quantity=1
@@ -463,8 +780,6 @@ def fetch_card_data(cards):
             })
     return card_data
 
-import netifaces
-
 @app.route('/api/get-local-ip', methods=['GET'])
 def get_local_ip():
     try:
@@ -482,38 +797,6 @@ def get_local_ip():
         app.logger.error(f"Error getting local IP: {str(e)}")
         return jsonify({'error': 'Unable to retrieve local IP'}), 500
 
-@app.route('/', methods=['GET'])
-def redirect_to_list():
-    list_id = request.args.get('id')
-    if list_id:
-        return redirect(f'/card-list/{list_id}')
-    return "No list ID provided", 400
-
-@app.route('/api/card-list/<string:id>', methods=['GET'])
-def serve_card_list(id):
-    card_list = CardList.query.get(id)
-    if card_list is None:
-        return jsonify({"error": "Card list not found"}), 404
-    
-    items = CardListItem.query.filter_by(list_id=id).all()
-    cards = [{
-        "id": item.card_id,
-        "name": item.name,
-        "set": item.set_code,
-        "set_name": item.set_name,
-        "image_uris": json.loads(item.image_uris) if item.image_uris else {},
-        "price": float(item.price) if item.price else 0,
-        "foil_price": float(item.foil_price) if item.foil_price else 0,
-        "collector_number": item.collector_number,
-    } for item in items]
-    
-    return jsonify({
-        "id": card_list.id,
-        "name": card_list.name,
-        "cards": cards
-    })
-
-
 @app.route('/api/health', methods=['GET'])
 def health_check():
     # Check database connection
@@ -529,38 +812,21 @@ def health_check():
         'database': db_status
     })
 
-# Serve React App
+# Serve React App (must be after API routes to avoid conflicts)
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_react_app(path):
-    if path != "" and os.path.exists(f'frontend/build/{path}'):
-        return send_from_directory('frontend/build', path)
+    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+        app.logger.debug(f"Serving static file: {path}")
+        return send_from_directory(app.static_folder, path)
     else:
-        return send_from_directory('frontend/build', 'index.html')
+        app.logger.debug("Serving index.html")
+        return send_from_directory(app.static_folder, 'index.html')
+
 
 if __name__ == '__main__':
     with app.app_context():
-        # Remove db.create_all() and any schema changes to avoid altering the database
         setup_db_events(app)
-
     # Run the Flask app, accessible on your local network
     app.run(debug=True, host='0.0.0.0', port=5000)
 
-
-==== .env ====
-
-# .env
-
-VITE_API_URL=http://192.168.1.207:5000/
-
-==== .env.flask ====
-
-# .env.flask
-
-DATABASE_URI=postgresql://gluth:Caprisun1!@192.168.1.126:5432/mtg_collection_kiosk
-SECRET_KEY=you-will-never-guess
-FLASK_APP=main.py
-# Redis configuration (remove if not using Redis)
-# REDIS_HOST=localhost
-# REDIS_PORT=6379
-# REDIS_DB=0

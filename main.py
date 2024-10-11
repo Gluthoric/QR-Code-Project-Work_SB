@@ -25,6 +25,8 @@ app = Flask(
     static_folder=os.path.join(os.path.dirname(__file__), 'frontend', 'dist'),
     static_url_path=''
 )
+app.logger.debug(f"Static folder path set to: {app.static_folder}")
+
 CORS(app)  # Enable CORS for all routes
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
