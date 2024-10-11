@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+// src/components/QRCodeGenerator.tsx
+
+import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface QRCodeGeneratorProps {
@@ -9,7 +11,7 @@ interface QRCodeGeneratorProps {
 
 const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({ url, name, onNameChange }) => {
   const handleDownload = () => {
-    const svg = document.getElementById('qr-code') as HTMLElement;
+    const svg = document.getElementById('qr-code') as SVGSVGElement;
     const svgData = new XMLSerializer().serializeToString(svg);
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
