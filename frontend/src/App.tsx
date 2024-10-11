@@ -1,15 +1,16 @@
 // src/App.tsx
 
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useParams } from 'react-router-dom';
-import { FileUploader } from './components/FileUploader';
+import { BrowserRouter as Router, Routes, Route, useParams, Navigate } from 'react-router-dom';
+import FileUploader from './components/FileUploader';
 import CardGrid from './components/CardGrid';
 import QRCodeGenerator from './components/QRCodeGenerator';
 import { Card } from './types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-console.log('API_URL:', API_URL); // Add this line for debugging
+console.log('API_URL:', API_URL); // For debugging
 
+// Home Component: Displays the File Uploader
 function Home({ handleFileUpload }: { handleFileUpload: (file: File) => void }) {
   return (
     <div className="max-w-md mx-auto">
@@ -18,11 +19,29 @@ function Home({ handleFileUpload }: { handleFileUpload: (file: File) => void }) 
   );
 }
 
-function CardListView({ listId, listName, setListName }: { listId: string; listName: string; setListName: (name: string) => void }) {
+// CardList Component: Displays the QR Code and Card Grid
+function CardList({ listId, listName, setListName }: { listId: string; listName: string; setListName: (name: string) => void }) {
   const [cards, setCards] = useState<Card[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [localIpAddress, setLocalIpAddress] = useState('');
 
   useEffect(() => {
+    const fetchLocalIpAddress = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/get-local-ip`);
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Fetched local IP address:', data.ip);
+          setLocalIpAddress(data.ip);
+        } else {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+      } catch (error) {
+        console.error('Error fetching local IP address:', error);
+        setLocalIpAddress('localhost'); // Fallback to localhost if unable to fetch IP
+      }
+    };
+
     const fetchCardList = async () => {
       setIsLoading(true);
       try {
@@ -41,6 +60,7 @@ function CardListView({ listId, listName, setListName }: { listId: string; listN
       }
     };
 
+    fetchLocalIpAddress();
     fetchCardList();
   }, [listId, setListName]);
 
@@ -64,26 +84,9 @@ function CardListView({ listId, listName, setListName }: { listId: string; listN
     }
   };
 
-  // Fetch local IP only once
-  const [localIpAddress, setLocalIpAddress] = useState('');
-  useEffect(() => {
-    const fetchLocalIpAddress = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/get-local-ip`);
-        if (response.ok) {
-          const data = await response.json();
-          console.log('Fetched local IP address:', data.ip);
-          setLocalIpAddress(data.ip);
-        } else {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-      } catch (error) {
-        console.error('Error fetching local IP address:', error);
-        setLocalIpAddress('localhost'); // Fallback to localhost if unable to fetch IP
-      }
-    };
-    fetchLocalIpAddress();
-  }, []);
+  const handleDownload = () => {
+    // Logic to download QR code can be handled within the QRCodeGenerator component
+  };
 
   return (
     <div className="space-y-8">
@@ -104,10 +107,19 @@ function CardListView({ listId, listName, setListName }: { listId: string; listN
   );
 }
 
+// Wrapper Component to Extract URL Parameters
+function CardListWrapper() {
+  const { id } = useParams<{ id: string }>();
+
+  if (!id) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <CardList listId={id} listName="" setListName={() => {}} />;
+}
+
 function App() {
   const [isLoading, setIsLoading] = useState(false);
-  const [currentListId, setCurrentListId] = useState<string | null>(null);
-  const [currentListName, setCurrentListName] = useState('');
 
   const handleFileUpload = async (file: File) => {
     setIsLoading(true);
@@ -125,9 +137,7 @@ function App() {
       }
 
       const result = await response.json();
-      setCurrentListId(result.id);
-      setCurrentListName(result.name);
-      // Redirect to card list view
+      // Redirect to the card list view using React Router's navigation
       window.location.href = `/card-list/${result.id}`;
     } catch (error) {
       console.error('Error processing file:', error);
@@ -143,16 +153,7 @@ function App() {
         <h1 className="text-4xl font-bold text-center mb-8">MTG Card Uploader</h1>
         <Routes>
           <Route path="/" element={<Home handleFileUpload={handleFileUpload} />} />
-          <Route
-            path="/card-list/:id"
-            element={
-              <CardListWrapper
-                listId={currentListId}
-                listName={currentListName}
-                setListName={setCurrentListName}
-              />
-            }
-          />
+          <Route path="/card-list/:id" element={<CardListWrapper />} />
         </Routes>
         {isLoading && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
@@ -164,25 +165,6 @@ function App() {
       </div>
     </Router>
   );
-}
-
-function CardListWrapper({ listId, listName, setListName }: { listId: string | null; listName: string; setListName: (name: string) => void }) {
-  const { id } = useParams<{ id: string }>();
-
-  useEffect(() => {
-    if (id) {
-      // Set the listId if not already set
-      if (!listId) {
-        // You might want to fetch and set listId here
-      }
-    }
-  }, [id, listId]);
-
-  if (!id) {
-    return <div>No list ID provided.</div>;
-  }
-
-  return <CardListView listId={id} listName={listName} setListName={setListName} />;
 }
 
 export default App;
