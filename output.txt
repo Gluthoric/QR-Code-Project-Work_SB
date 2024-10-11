@@ -113,7 +113,7 @@ function App() {
   const fetchCardList = async (id: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/card-list/${id}`);
+      const response = await fetch(`${API_URL}/api/card-list/${id}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -160,7 +160,7 @@ function App() {
     setListName(newName);
     if (listId) {
       try {
-        const response = await fetch(`${API_URL}/card-list/${listId}`, {
+        const response = await fetch(`${API_URL}/api/card-list/${listId}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -189,7 +189,7 @@ function App() {
         <div className="space-y-8">
           {listId && (
             <QRCodeGenerator
-              url={`http://${localIpAddress}:5173/card-list/${listId}`}
+              url={`http://${localIpAddress}:5000/card-list/${listId}`}
               name={listName}
               onNameChange={handleNameChange}
             />
@@ -501,12 +501,21 @@ def fetch_card_data(cards):
             })
     return card_data
 
+import netifaces
+
 @app.route('/api/get-local-ip', methods=['GET'])
 def get_local_ip():
     try:
-        hostname = socket.gethostname()
-        local_ip = socket.gethostbyname(hostname)
-        return jsonify({'ip': local_ip})
+        interfaces = netifaces.interfaces()
+        for iface in interfaces:
+            addrs = netifaces.ifaddresses(iface)
+            if netifaces.AF_INET in addrs:
+                for addr in addrs[netifaces.AF_INET]:
+                    ip = addr['addr']
+                    # Exclude loopback and Docker addresses
+                    if not ip.startswith('127.') and not ip.startswith('172.'):
+                        return jsonify({'ip': ip})
+        return jsonify({'error': 'No valid IP found'}), 500
     except Exception as e:
         app.logger.error(f"Error getting local IP: {str(e)}")
         return jsonify({'error': 'Unable to retrieve local IP'}), 500
