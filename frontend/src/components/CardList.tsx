@@ -112,7 +112,7 @@ const CardList: React.FC<CardListProps> = ({ listId, listName, setListName }) =>
       ) : (
         <>
           <QRCodeGenerator
-            url={`http://${localIpAddress}:5000/card-list/${listId}`}
+            url={`http://${localIpAddress}:5000/#/card-list/${listId}`}
             name={listName}
             onNameChange={handleNameChange}
           />
