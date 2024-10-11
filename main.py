@@ -289,9 +289,13 @@ def fetch_card_data(cards):
 
 @app.route('/api/get-local-ip', methods=['GET'])
 def get_local_ip():
-    hostname = socket.gethostname()
-    local_ip = socket.gethostbyname(hostname)
-    return jsonify({'ip': local_ip})
+    try:
+        hostname = socket.gethostname()
+        local_ip = socket.gethostbyname(hostname)
+        return jsonify({'ip': local_ip})
+    except Exception as e:
+        app.logger.error(f"Error getting local IP: {str(e)}")
+        return jsonify({'error': 'Unable to retrieve local IP'}), 500
 
 
 @app.route('/api/health', methods=['GET'])
