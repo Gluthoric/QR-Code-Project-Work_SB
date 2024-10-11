@@ -73,11 +73,11 @@ def handle_operational_error(error):
 @app.route('/api/card-list/<string:id>', methods=['GET'])
 def get_card_list(id):
     try:
-        card_list = CardList.query.get(id)
+        card_list = db.session.get(CardList, id)
         if not card_list:
             return jsonify({'error': 'Card list not found'}), 404
 
-        items = CardListItem.query.filter_by(list_id=id).all()
+        items = db.session.query(CardListItem).filter_by(list_id=id).all()
         cards = [{
             "id": item.card_id,
             "name": item.name,
@@ -328,7 +328,7 @@ def serve_frontend(path):
             return send_from_directory(app.static_folder, 'index.html')
     except Exception as e:
         logging.error(f"Error serving {path}: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
+        return send_from_directory(app.static_folder, 'index.html')
 
 
 if __name__ == '__main__':
