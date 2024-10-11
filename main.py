@@ -2,6 +2,7 @@
 
 import os
 from flask import Flask, jsonify, request, send_from_directory
+from werkzeug.exceptions import NotFound
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from dotenv import load_dotenv
