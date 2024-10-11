@@ -25,13 +25,16 @@ function App() {
 
   const fetchLocalIpAddress = async () => {
     try {
-      const response = await fetch(`${API_URL}/get-local-ip`);
+      const response = await fetch(`${API_URL}/api/get-local-ip`);
       if (response.ok) {
         const data = await response.json();
         setLocalIpAddress(data.ip);
+      } else {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
     } catch (error) {
       console.error('Error fetching local IP address:', error);
+      setLocalIpAddress('localhost'); // Fallback to localhost if unable to fetch IP
     }
   };
 
@@ -112,9 +115,9 @@ function App() {
         </div>
       ) : (
         <div className="space-y-8">
-          {listId && localIpAddress && (
+          {listId && (
             <QRCodeGenerator
-              url={`http://${localIpAddress}:5000/card-list/${listId}`}
+              url={`http://${localIpAddress || 'localhost'}:5000?id=${listId}`}
               name={listName}
               onNameChange={handleNameChange}
             />

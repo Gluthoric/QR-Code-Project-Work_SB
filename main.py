@@ -287,7 +287,7 @@ def fetch_card_data(cards):
             })
     return card_data
 
-@app.route('/get-local-ip', methods=['GET'])
+@app.route('/api/get-local-ip', methods=['GET'])
 def get_local_ip():
     hostname = socket.gethostname()
     local_ip = socket.gethostbyname(hostname)
