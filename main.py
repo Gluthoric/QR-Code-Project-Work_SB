@@ -20,7 +20,7 @@ import netifaces
 load_dotenv('.env.flask')
 
 # Initialize Flask
-app = Flask(__name__, static_folder='frontend/dist', static_url_path='')
+app = Flask(__name__, static_folder='frontend/dist', static_url_path='/')
 
 CORS(app)  # Enable CORS for all routes
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -307,16 +307,12 @@ def serve_static_files(filename):
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_frontend(path):
-    # If the path starts with 'api', return 404 since it's not a frontend route
     if path.startswith('api'):
         return jsonify({'error': 'Not found'}), 404
-
-    # If the path is a valid static file, serve it
-    if os.path.exists(os.path.join(app.static_folder, path)):
+    try:
         return send_from_directory(app.static_folder, path)
-
-    # For all other routes, serve the index.html (React frontend)
-    return send_from_directory(app.static_folder, 'index.html')
+    except NotFound:
+        return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
