@@ -268,12 +268,6 @@ def get_local_ip():
         app.logger.error(f"Error getting local IP: {str(e)}")
         return jsonify({'error': 'Unable to retrieve local IP'}), 500
 
-@app.route('/', methods=['GET'])
-def redirect_to_list():
-    list_id = request.args.get('id')
-    if list_id:
-        return redirect(f'/card-list/{list_id}')
-    return "No list ID provided", 400
 
 @app.route('/api/card-list/<string:id>', methods=['GET'])
 def serve_card_list(id):
