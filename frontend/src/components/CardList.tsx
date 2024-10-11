@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import QRCodeGenerator from './QRCodeGenerator';
 import CardGrid from './CardGrid';
 import { Card } from '../types';
+import { useNavigate } from 'react-router-dom';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -14,7 +15,9 @@ interface CardListProps {
 const CardList: React.FC<CardListProps> = ({ listId, listName, setListName }) => {
   const [cards, setCards] = useState<Card[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [localIpAddress, setLocalIpAddress] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchLocalIpAddress = async () => {
@@ -35,9 +38,13 @@ const CardList: React.FC<CardListProps> = ({ listId, listName, setListName }) =>
 
     const fetchCardList = async () => {
       setIsLoading(true);
+      setError(null);
       try {
         const response = await fetch(`${API_URL}/api/card-list/${listId}`);
         if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error('Card list not found');
+          }
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
@@ -45,7 +52,7 @@ const CardList: React.FC<CardListProps> = ({ listId, listName, setListName }) =>
         setListName(data.name);
       } catch (error) {
         console.error('Error fetching card list:', error);
-        alert('Error fetching card list. Please try again.');
+        setError(error instanceof Error ? error.message : 'An unknown error occurred');
       } finally {
         setIsLoading(false);
       }
@@ -74,6 +81,20 @@ const CardList: React.FC<CardListProps> = ({ listId, listName, setListName }) =>
       alert('Error updating list name. Please try again.');
     }
   };
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen">
+        <p className="text-xl font-semibold text-red-600 mb-4">{error}</p>
+        <button
+          onClick={() => navigate('/')}
+          className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
+        >
+          Go Back to Home
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
