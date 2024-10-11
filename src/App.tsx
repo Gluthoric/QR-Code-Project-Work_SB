@@ -49,7 +49,7 @@ function App() {
   const fetchCardList = async (id: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/card-list/${id}`);
+      const response = await fetch(`${API_URL}/api/card-list/${id}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -96,7 +96,7 @@ function App() {
     setListName(newName);
     if (listId) {
       try {
-        const response = await fetch(`${API_URL}/card-list/${listId}`, {
+        const response = await fetch(`${API_URL}/api/card-list/${listId}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -125,7 +125,7 @@ function App() {
         <div className="space-y-8">
           {listId && (
             <QRCodeGenerator
-              url={`http://${localIpAddress}:5173/card-list/${listId}`}
+              url={`http://${localIpAddress}:5000/card-list/${listId}`}
               name={listName}
               onNameChange={handleNameChange}
             />
