@@ -29,7 +29,9 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(leve
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
-
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True
+}
 db = SQLAlchemy(app)
 
 # Define models
@@ -53,14 +55,6 @@ class CardListItem(db.Model):
     quantity = db.Column(db.Integer, default=1)  # New field for quantity
     card_list = relationship('CardList', back_populates='items')
 
-def setup_db_events(app):
-    @event.listens_for(db.engine, "engine_connect")
-    def ping_connection(conn):
-        try:
-            conn.scalar(text("SELECT 1"))
-        except Exception:
-            app.logger.warning("Database connection failed. Invalidating connection.")
-            conn.invalidate()
 
 # Global error handler for database errors
 @app.errorhandler(SQLAlchemyError)
@@ -307,7 +301,4 @@ def health_check():
 
 
 if __name__ == '__main__':
-    with app.app_context():
-        setup_db_events(app)
-    # Run the Flask app, accessible on your local network
     app.run(debug=True, host='0.0.0.0', port=5000)
