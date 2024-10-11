@@ -3,7 +3,7 @@ import FileUploader from './components/FileUploader';
 import CardGrid from './components/CardGrid';
 import QRCodeGenerator from './components/QRCodeGenerator';
 import { getCardsFromLocalAPI } from './utils/api';
-import { Card, LocalAPICard } from './types';
+import { Card } from './types';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -12,6 +12,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [listId, setListId] = useState<string | null>(null);
   const [listName, setListName] = useState('');
+  const [localIpAddress, setLocalIpAddress] = useState('');
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -19,7 +20,20 @@ function App() {
     if (id) {
       fetchCardList(id);
     }
+    fetchLocalIpAddress();
   }, []);
+
+  const fetchLocalIpAddress = async () => {
+    try {
+      const response = await fetch(`${API_URL}/get-local-ip`);
+      if (response.ok) {
+        const data = await response.json();
+        setLocalIpAddress(data.ip);
+      }
+    } catch (error) {
+      console.error('Error fetching local IP address:', error);
+    }
+  };
 
   const fetchCardList = async (id: string) => {
     setIsLoading(true);
@@ -98,9 +112,9 @@ function App() {
         </div>
       ) : (
         <div className="space-y-8">
-          {listId && (
+          {listId && localIpAddress && (
             <QRCodeGenerator
-              url={`${window.location.origin}?id=${listId}`}
+              url={`http://${localIpAddress}:5000/card-list/${listId}`}
               name={listName}
               onNameChange={handleNameChange}
             />

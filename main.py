@@ -1,6 +1,4 @@
-#main.py backup
-
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template_string
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -14,6 +12,10 @@ from sqlalchemy.exc import SQLAlchemyError, OperationalError
 from sqlalchemy.orm import relationship
 import json
 import logging
+import qrcode
+from io import BytesIO
+import base64
+import socket
 
 # Load environment variables from .env.flask
 load_dotenv('.env.flask')
@@ -285,6 +287,13 @@ def fetch_card_data(cards):
             })
     return card_data
 
+@app.route('/get-local-ip', methods=['GET'])
+def get_local_ip():
+    hostname = socket.gethostname()
+    local_ip = socket.gethostbyname(hostname)
+    return jsonify({'ip': local_ip})
+
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     # Check database connection
@@ -302,28 +311,9 @@ def health_check():
 
 if __name__ == '__main__':
     with app.app_context():
-        db.create_all()
-        # Ensure the 'name' and 'quantity' columns exist in the card_list_items table
-        with db.engine.connect() as connection:
-            connection.execute(text("""
-                DO $$
-                BEGIN
-                    IF NOT EXISTS (
-                        SELECT FROM information_schema.columns
-                        WHERE table_name = 'card_list_items' AND column_name = 'name'
-                    ) THEN
-                        ALTER TABLE card_list_items
-                        ADD COLUMN name VARCHAR(255) NOT NULL DEFAULT '';
-                    END IF;
-
-                    IF NOT EXISTS (
-                        SELECT FROM information_schema.columns
-                        WHERE table_name = 'card_list_items' AND column_name = 'quantity'
-                    ) THEN
-                        ALTER TABLE card_list_items
-                        ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1;
-                    END IF;
-                END $$;
-            """))
+        # Remove db.create_all() and any schema changes to avoid altering the database
         setup_db_events(app)
-    app.run(debug=True)
+
+    # Run the Flask app, accessible on your local network
+    app.run(debug=True, host='0.0.0.0', port=5000)
+
