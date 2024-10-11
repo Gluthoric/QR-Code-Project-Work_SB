@@ -22,7 +22,7 @@ load_dotenv('.env.flask')
 # Initialize Flask with absolute path for static_folder
 app = Flask(
     __name__,
-    static_folder=os.path.join(os.path.dirname(__file__), 'frontend', 'build'),
+    static_folder=os.path.join(os.path.dirname(__file__), 'frontend', 'dist'),
     static_url_path=''
 )
 CORS(app)  # Enable CORS for all routes
